@@ -1,0 +1,18 @@
+{
+  "name": "js-yaml-extended",
+  "version": "1.0.0",
+  "description": "- [About](#about)\r - [Quick start](#quick-start)\r - [Usage](#usage)\r - [Configuration](#configuration)\r - [Development](#development)\r - [Implementation Details](#implementation-details)\r - [FAQ](#faq)",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "run"
+  },
+  "author": "ZiadTaha62",
+  "license": "ISC",
+  "types": "./index.d.ts",
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
