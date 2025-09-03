@@ -1,0 +1,626 @@
+import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
+import { Interpolation } from "./interpolation/interpolationHandler.js";
+import { TagResolveItem } from "./tagResolveItem.js";
+import type {
+  DirectivesObj,
+  LoadOptions,
+  ResolveCache,
+  InternalLoad,
+  InternalLoadAsync,
+} from "../../../types.js";
+import { BlueprintItem } from "./blueprintItem.js";
+import { generateId, getClosingChar } from "../../helpers.js";
+
+/**
+ * Class that handles resolving raw load, so signle raw load can be resolved to multiple final loads based on module params value.
+ */
+export class ResolveHandler {
+  /**
+   * Cache that holds resolve data for each resolve execution. it's keyed by concatinating loadId and resolved path (or random id if resolved path not passed). so each cache is
+   * unique.
+   */
+  #resolveCache: ResolveCache = new Map();
+
+  /** Class to handle interpolations resolving. */
+  #intHandler: Interpolation;
+
+  /**
+   * @param load - Reference to internalLoad function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
+   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
+   */
+  constructor(load: InternalLoad, loadAsync: InternalLoadAsync) {
+    // create interpolation class to handle interpolations while resolving.
+    this.#intHandler = new Interpolation(
+      this.#resolveCache,
+      this.#resolveUnknown.bind(this),
+      this.#resolveUnknownAsync.bind(this),
+      load,
+      loadAsync
+    );
+  }
+
+  /**
+   * Method to create blueprint from raw load by looping through it and replacing any scalar or interpolation by BlueprintItem class that store there value and return them when needed.
+   * @param rawLoad - Raw load from js-yaml execution.
+   * @returns Blueprint that can be resolved to final loads.
+   */
+  createBlueprint(rawLoad: unknown): unknown {
+    // if array generate similar array and all values go through emptyCopy method as well
+    if (Array.isArray(rawLoad)) {
+      // check if it's syntaxt [$val]
+      if (this.#intHandler.isIntSequence(rawLoad))
+        return new BlueprintItem(rawLoad);
+
+      // otherwise handle as normal array
+      const out: unknown[] = [];
+      for (const v of rawLoad) out.push(this.createBlueprint(v));
+      return out;
+    }
+
+    // if object generate object of similar keys and all values go through emptyCopy method as well
+    if (rawLoad && typeof rawLoad === "object") {
+      // convert to interies
+      const enteries = Object.entries(rawLoad);
+
+      // check if it's syntaxt {$val}
+      if (this.#intHandler.isIntMapping(enteries))
+        return new BlueprintItem(rawLoad);
+
+      // otherwise handle as normal object
+      const out: Record<any, unknown> = {};
+      for (const [k, v] of enteries) {
+        out[k] = this.createBlueprint(v);
+      }
+      return out;
+    }
+
+    // otherwise return blueprint item
+    return new BlueprintItem(rawLoad);
+  }
+
+  /**
+   * Method to resolve blueprint into final load returned to user. works sync meaning any YAML file read or tag construct function execution is executed synchronously.
+   * @param path - Resolved path of the module.
+   * @param blueprint - Blueprint of the module.
+   * @param directivesObj - Directives object of the module.
+   * @param paramsVal - Params value passed with this load function execution.
+   * @param loadId - Load id generated to this load function execution.
+   * @param opts - Options passed with this load function execution.
+   * @returns Final load after resolving the blueprint, what is returned to the user after load functions finishes.
+   */
+  resolve(
+    path: string | undefined,
+    blueprint: unknown,
+    directivesObj: DirectivesObj,
+    paramsVal: Record<string, string>,
+    loadId: string,
+    opts: LoadOptions
+  ): unknown {
+    // generate id by concatinating loadId with resolved path or random id to uniquely identify this resolve
+    const id = `${loadId}_${path ?? generateId()}`;
+
+    // add execution cache data
+    this.#resolveCache.set(id, {
+      path,
+      ...directivesObj,
+      blueprint,
+      paramsVal,
+      localsVal: [],
+      opts,
+    });
+
+    // start actual handling
+    try {
+      // resolve
+      const resolved = this.#resolveUnknown(blueprint, id, false);
+      // remove private and return value
+      return this.#filterPrivate(resolved, id);
+    } finally {
+      this.#resolveCache.delete(id);
+    }
+  }
+
+  /**
+   * Method to resolve blueprint into final load returned to user. works ssync meaning any YAML file read or tag construct function execution is executed asynchronously.
+   * @param path - Resolved path of the module.
+   * @param blueprint - Blueprint of the module.
+   * @param directivesObj - Directives object of the module.
+   * @param paramsVal - Params value passed with this load function execution.
+   * @param loadId - Load id generated to this load function execution.
+   * @param opts - Options passed with this load function execution.
+   * @returns Final load after resolving the blueprint, what is returned to the user after load functions finishes.
+   */
+  async resolveAsync(
+    path: string | undefined,
+    blueprint: unknown,
+    directivesObj: DirectivesObj,
+    paramsVal: Record<string, string>,
+    loadId: string,
+    opts: LoadOptions
+  ): Promise<unknown> {
+    // generate id by concatinating loadId with resolved path or random id to uniquely identify this resolve
+    const id = `${loadId}_${path ?? generateId()}`;
+
+    // add execution cache data
+    this.#resolveCache.set(id, {
+      path,
+      ...directivesObj,
+      blueprint,
+      paramsVal,
+      localsVal: [],
+      opts,
+    });
+
+    // start actual handling
+    try {
+      // resolve
+      const resolved = await this.#resolveUnknownAsync(blueprint, id, false);
+      // remove private and return value
+      return this.#filterPrivate(resolved, id);
+    } finally {
+      this.#resolveCache.delete(id);
+    }
+  }
+
+  /**
+   * Method to resolve unkown value types by checking type and using appropriate specific resolver function. it's also the place where blueprintItem is resolved. works sync.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the specific resolve function based on type.
+   */
+  #resolveUnknown(
+    val: unknown,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): unknown {
+    // if blue print item resolve it
+    if (val instanceof BlueprintItem)
+      val = this.#resolveBlueprintItem(val, anchored, path);
+
+    // handle value according to its type
+    if (typeof val === "string") return this.#resolveString(val, id);
+    if (typeof val !== "object" || val === null) return val;
+    if (val instanceof TagResolveItem)
+      return this.#resolveTag(val, id, anchored, path);
+    if (Array.isArray(val)) return this.#resolveArray(val, id, anchored, path);
+    return this.#resolveObject(val, id, anchored, path);
+  }
+
+  /**
+   * Method to resolve unkown value types by checking type and using appropriate specific resolver function. it's also the place where blueprintItem is resolved. works async.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the specific resolve function based on type.
+   */
+  async #resolveUnknownAsync(
+    val: unknown,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): Promise<unknown> {
+    // if blue print item resolve it
+    if (val instanceof BlueprintItem)
+      val = this.#resolveBlueprintItem(val, anchored, path);
+
+    // handle value according to its type
+    if (typeof val === "string") return await this.#resolveStringAsync(val, id);
+    if (typeof val !== "object" || val === null) return val;
+    if (val instanceof TagResolveItem)
+      return await this.#resolveTagAsync(val, id, anchored, path);
+    if (Array.isArray(val))
+      return await this.#resolveArrayAsync(val, id, anchored, path);
+    return await this.#resolveObjectAsync(val, id, anchored, path);
+  }
+
+  /**
+   * Method to resolve objects (mapping in YAML). works sync.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved object (mapping in YAML).
+   */
+  #resolveObject(
+    obj: object,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): object {
+    // resolve all the enteries of the original blue print
+    const newObj = { ...obj };
+    const enteries = Object.entries(newObj);
+
+    // if empty return empty object
+    if (enteries.length === 0) return {};
+
+    // check if it's syntaxt {$val}
+    const intMapping = this.#intHandler.handleIntMapping(enteries, id);
+    if (intMapping) return intMapping;
+
+    // loop enteries
+    for (const [key, val] of enteries)
+      (newObj as any)[key] = this.#resolveUnknown(val, id, anchored, path);
+    return newObj;
+  }
+
+  /**
+   * Method to resolve objects (mapping in YAML). works async.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved object (mapping in YAML).
+   */
+  async #resolveObjectAsync(
+    obj: object,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): Promise<object> {
+    // resolve all the enteries of the original blue print
+    const newObj = { ...obj };
+    const enteries = Object.entries(newObj);
+
+    // if empty return empty object
+    if (enteries.length === 0) return {};
+
+    // check if it's syntaxt {$val}
+    const intMapping = await this.#intHandler.handleIntMappingAsync(
+      enteries,
+      id
+    );
+    if (intMapping) return intMapping;
+
+    // loop enteries
+    for (const [key, val] of enteries)
+      (newObj as any)[key] = await this.#resolveUnknownAsync(
+        val,
+        id,
+        anchored,
+        path
+      );
+    return newObj;
+  }
+
+  /**
+   * Method to resolve arrays (sequence in YAML). works sync.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved arrays (sequence in YAML).
+   */
+  #resolveArray(
+    arr: any[],
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): unknown[] {
+    // resolve all the items of the original blue print
+    const newArr = [...arr];
+
+    // check if it's syntaxt [$val]
+    const intSequence = this.#intHandler.handleIntSequence(newArr, id);
+    if (intSequence) return intSequence;
+
+    // handle all the values in the array
+    for (let i = 0; i < newArr.length; i++)
+      newArr[i] = this.#resolveUnknown(newArr[i], id, anchored, path);
+
+    // return new array
+    return newArr;
+  }
+
+  /**
+   * Method to resolve arrays (sequence in YAML). works async.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved arrays (sequence in YAML).
+   */
+  async #resolveArrayAsync(
+    arr: any[],
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): Promise<unknown[]> {
+    // resolve all the items of the original blue print
+    const newArr = [...arr];
+
+    // check if it's syntaxt [$val]
+    const intSequence = await this.#intHandler.handleIntSequenceAsync(
+      newArr,
+      id
+    );
+    if (intSequence) return intSequence;
+
+    // handle all the values in the array
+    for (let i = 0; i < newArr.length; i++)
+      newArr[i] = await this.#resolveUnknownAsync(
+        newArr[i],
+        id,
+        anchored,
+        path
+      );
+
+    // return new array
+    return newArr;
+  }
+
+  /**
+   * Method to resolve string (scalar in YAML). works sync.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @returns Value of the resolved string (scalar in YAML).
+   */
+  #resolveString(str: string, id: string): string {
+    // check if it's syntaxt $val
+    const intScaler = this.#intHandler.handleIntScalar(str, id);
+    if (intScaler) return intScaler;
+
+    /** Var to hold out string. */
+    let out: string = "";
+    /** Var to hold loop index. */
+    let i = 0;
+
+    // start loop
+    while (i < str.length) {
+      // get character
+      const ch = str[i];
+
+      // if charachter is $ handle it
+      if (ch === "$") {
+        // escaped -> $${}
+        if (str[i + 1] === "$" && str[i + 2] === "{") {
+          out += "${"; // ad only one "$" to the out string
+          i += 3; // skip the reset of the expression
+          continue;
+        }
+
+        // non escaped -> ${}
+        if (str[i + 1] === "{") {
+          const end = getClosingChar(str, "{", "}", i + 2);
+          if (end === -1)
+            throw new WrapperYAMLException(
+              `String interpolation used without closing '}' in: ${str}`
+            );
+          const val = this.#intHandler.resolve(str.slice(i, end + 1), id);
+          const stringifiedVal =
+            typeof val === "string" ? val : JSON.stringify(val);
+          out += stringifiedVal;
+          i = end + 1;
+          continue;
+        }
+      }
+
+      // any other char just add it and increment index
+      out += ch;
+      i++;
+    }
+
+    // return out string
+    return out;
+  }
+
+  /**
+   * Method to resolve string (scalar in YAML). works async.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @returns Value of the resolved string (scalar in YAML).
+   */
+  async #resolveStringAsync(str: string, id: string): Promise<string> {
+    // check if it's syntaxt $val
+    const intScaler = await this.#intHandler.handleIntScalarAsync(str, id);
+    if (intScaler) return intScaler;
+
+    /** Var to hold out string. */
+    let out: string = "";
+    /** Var to hold loop index. */
+    let i = 0;
+
+    // start loop
+    while (i < str.length) {
+      // get character
+      const ch = str[i];
+
+      // if charachter is $ handle it
+      if (ch === "$") {
+        // escaped -> $${}
+        if (str[i + 1] === "$" && str[i + 2] === "{") {
+          out += "${"; // ad only one "$" to the out string
+          i += 3; // skip the reset of the expression
+          continue;
+        }
+
+        // non escaped -> ${}
+        if (str[i + 1] === "{") {
+          const end = getClosingChar(str, "{", "}", i + 2);
+          if (end === -1)
+            throw new WrapperYAMLException(
+              `String interpolation used without closing '}' in: ${str}`
+            );
+          const val = await this.#intHandler.resolveAsync(
+            str.slice(i, end + 1),
+            id
+          );
+          const stringifiedVal =
+            typeof val === "string" ? val : JSON.stringify(val);
+          out += stringifiedVal;
+          i = end + 1;
+          continue;
+        }
+      }
+
+      // any other char just add it and increment index
+      out += ch;
+      i++;
+    }
+
+    // return out string
+    return out;
+  }
+
+  /**
+   * Method to resolve tags. it uses resolveUnkown to resolve data passed to the tag and resolveString to resolve params passed and then execute construct function. works sync.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved tag.
+   */
+  #resolveTag(
+    resolveItem: TagResolveItem,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): unknown {
+    // get data, params and resolve function
+    const { data, params, resolve } = resolveItem;
+
+    // handle data and params (data's type is unkown but params type is string)
+    const resolvedData = this.#resolveUnknown(data, id, anchored, path);
+    const resolvedParams = params && this.#resolveString(params, id);
+
+    // save resolved values in the tag resolve instance
+    resolveItem.data = resolvedData;
+    resolveItem.params = resolvedParams;
+
+    // execute the constructor function
+    const value = resolve();
+    return value;
+  }
+
+  /**
+   * Method to resolve tags. it uses resolveUnkown to resolve data passed to the tag and resolveString to resolve params passed and then execute construct function. works async.
+   * @param val - Unknown value.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value of the resolved tag.
+   */
+  async #resolveTagAsync(
+    resolveItem: TagResolveItem,
+    id: string,
+    anchored: boolean,
+    path?: string[]
+  ): Promise<unknown> {
+    // get data, params and resolve function
+    const { data, params, resolveAsync } = resolveItem;
+
+    // handle data and params (data's type is unkown but params type is string)
+    const resolvedData = await this.#resolveUnknownAsync(
+      data,
+      id,
+      anchored,
+      path
+    );
+    const resolvedParams =
+      params && (await this.#resolveStringAsync(params, id));
+
+    // save resolved values in the tag resolve instance
+    resolveItem.data = resolvedData;
+    resolveItem.params = resolvedParams;
+
+    // execute the constructor function
+    const value = await resolveAsync();
+    return value;
+  }
+
+  /**
+   * Method to filter private nodes from final load.
+   * @param resolve - resolved value returned from resolve method.
+   * @param id - Unique id generated for this resolve executiion, used to access cache.
+   * @returns Final value after removal or private items.
+   */
+  #filterPrivate(resolve: unknown, id: string): unknown {
+    // get private arr
+    const privateArr = this.#resolveCache.get(id)?.privateArr;
+    if (!privateArr) return resolve;
+
+    // loop through private array to handle each path
+    for (const priv of privateArr) {
+      // get parts of the path
+      const path = priv.split(".");
+
+      // var that holds the resolve to transverse through it
+      let node = resolve;
+      for (let i = 0; i < path.length; i++) {
+        // get current part of the path
+        const p = path[i];
+
+        // if it's not a record then path is not true and just console a warning
+        if (!this.#isRecord(node)) {
+          console.warn(`Private path ${path} is not valid`);
+          break;
+        }
+
+        // in last iteraion delete the child based on the parent type
+        if (path.length - 1 === i) {
+          if (p in node) {
+            if (Array.isArray(node)) node.splice(Number(p), 1);
+            else delete node[p];
+            continue;
+          }
+          if (Array.isArray(node) && typeof p === "string") {
+            const idx = node.indexOf(p);
+            if (idx !== -1) node.splice(idx, 1);
+            continue;
+          }
+          console.warn(`Private path ${path} is not valid`);
+          continue;
+        }
+
+        // if item is present in node update it and continue
+        if (p in node) {
+          node = node[p];
+          continue;
+        }
+
+        // only if node is an array then try matching using string value
+        if (Array.isArray(node) && typeof p === "string") {
+          const idx = node.indexOf(p);
+          if (idx !== -1) {
+            node = node[idx];
+            continue;
+          }
+        }
+
+        // if it reached until here this means that path is not valid so warn user
+        console.warn(`Private path ${path} is not valid`);
+      }
+    }
+
+    return resolve;
+  }
+
+  /**
+   * Method to check if item is blueprintItem, if yes it will resolve it by returning value saved inside it. otherwise return value as it is.
+   * @param val - Unknown value.
+   * @param anchored - Boolean to indicate if the resolving is anchored (reference value in the node tree) or just part of main resolve loop. it controls how blueprint item is resolved.
+   * @param path - Optional and needed only if anchored is tree. so error message will contain path of the node in the tree.
+   * @returns Value after resolving.
+   */
+  #resolveBlueprintItem(
+    val: unknown,
+    anchored: boolean,
+    path?: string[]
+  ): unknown {
+    if (!(val instanceof BlueprintItem)) return val;
+    return anchored ? val.resolveAnchor(path) : val.resolve();
+  }
+
+  /**
+   * Method to check if value is an array or object (record that can contains other primative values).
+   * @param val - Value that will be checked.
+   * @returns Boolean that indicates if value is a record or not.
+   */
+  #isRecord(val: unknown): val is Record<string, unknown> {
+    return typeof val === "object" && val !== null;
+  }
+}

@@ -1,18 +1,24 @@
 {
   "name": "js-yaml-extended",
   "version": "1.0.0",
-  "description": "- [About](#about)\r - [Quick start](#quick-start)\r - [Usage](#usage)\r - [Configuration](#configuration)\r - [Development](#development)\r - [Implementation Details](#implementation-details)\r - [FAQ](#faq)",
+  "description": "",
   "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
+  "type": "module",
   "scripts": {
-    "test": "run"
+    "start": "nodemon ./test/test.js"
   },
   "author": "ZiadTaha62",
   "license": "ISC",
   "types": "./index.d.ts",
   "dependencies": {
     "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.3.0",
+    "nodemon": "^3.1.10",
+    "ts-loader": "^9.5.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }

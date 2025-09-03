@@ -1,14 +1,15 @@
-import { YAMLException } from "../../../wrapperClasses/error.js";
+import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
 import { dirEndRegex, pathRegex } from "../regex.js";
 import type { DirectivesObj } from "../../../types.js";
 
-/** Class to handle reading wrapper directives at the top of the string. with normalizing the string back to normal YAML so it can be passed to the loader. */
+/**
+ * Class to handle reading directives at the top of YAML string. it also strip them from the string and convert it back to normal YAML so it can be passed to js-yaml loader function.
+ */
 export class DirectivesHandler {
   /**
-   * Method to read directives in the string, handle wrapper specific directives by reading and filtering them from original string.
+   * Method to read directives in YAML string, handle wrapper specific directives by reading and filtering them from original string.
    * @param str - String passed in load function.
-   * @returns Object that holds safe & filtered string ready to be fed to the parser. along with params & private arrays which holds defined params and private nodes, and import object
-   * with keys aliases and there corrispoding paths.
+   * @returns Filtered string ready to be fed to the parser along with directives object which holds meta data about directives to be used in the resolver.
    */
   handle(str: string): DirectivesObj & { filteredStr: string } {
     // define main arrays and maps to hold directives data
@@ -37,7 +38,9 @@ export class DirectivesHandler {
         importsMap,
       }; // no directives
     if (parts.length > 2)
-      throw new YAMLException("Directives splitting can only be done once."); // more than one dir end mark in the file
+      throw new WrapperYAMLException(
+        "Directives splitting can only be done once."
+      ); // more than one dir end mark in the file
 
     // split directive part into lines
     const lines = parts[0]
@@ -53,8 +56,8 @@ export class DirectivesHandler {
       // get line
       const line = lines[i];
 
-      // split line into parts
-      const parts = line.split(" ");
+      // split line into parts by deviding using white space
+      const parts = line.split(" ").filter((v) => v);
 
       // according to first part (directive decleration) pass remaining parts to specific function
       const dec = parts.shift();
@@ -94,16 +97,27 @@ export class DirectivesHandler {
     };
   }
 
-  /** Method to push private nodes to the private store. */
-  #handlePrivate(privateArr: string[], parts: string[]) {
+  /**
+   * Method to push private nodes to the private array of directives object.
+   * @param privateArr - Reference to the array that holds private nodes and will be passed to directives object.
+   * @param parts - Parts of the line.
+   */
+  #handlePrivate(privateArr: string[], parts: string[]): void {
     for (const p of parts) privateArr.push(p);
   }
 
-  /** Method to create locals map where key is alias for the local and value is default value. */
-  #handleLocals(localsMap: Map<string, string>, parts: string[]) {
+  /**
+   * Method to add to locals map where key is alias for the local and value is the default value.
+   * @param localsMap - Reference to the map that holds local's aliases and default values and will be passed to directives object.
+   * @param parts - Parts of the line.
+   */
+  #handleLocals(localsMap: Map<string, string>, parts: string[]): void {
     // make sure that alias is present
     if (parts.length < 1)
-      throw new YAMLException(`Local directive should include at least alias.`);
+      throw new WrapperYAMLException(
+        `Local directive should include at least alias.`
+      );
+
     // get alias and default value
     const alias = parts[0];
     const defValue = parts[1];
@@ -112,11 +126,17 @@ export class DirectivesHandler {
     localsMap.set(alias, defValue);
   }
 
-  /** Method to create params map where key is alias for the local and value is default value. */
+  /**
+   * Method to add to params map where key is alias for the param and value is the default value.
+   * @param paramsMap - Reference to the map that holds params's aliases and default values and will be passed to directives object.
+   * @param parts - Parts of the line.
+   */
   #handleParams(paramsMap: Map<string, string>, parts: string[]) {
     // make sure that alias is present
     if (parts.length < 1)
-      throw new YAMLException(`Param directive should include at least alias.`);
+      throw new WrapperYAMLException(
+        `Param directive should include at least alias.`
+      );
     // get alias and default value
     const alias = parts[0];
     const defValue = parts[1];
@@ -126,15 +146,20 @@ export class DirectivesHandler {
   }
 
   /** Method to verify imports structure (<alias> <path>) and add them to the map. */
+  /**
+   * Method to add to imports map where key is alias for the import and value is the path and default params values passed to this import.
+   * @param importsMap - Reference to the map that holds imports's aliases and path with default params values and will be passed to directives object.
+   * @param parts - Parts of the line.
+   */
   #handleImports(
     importsMap: Map<
       string,
       { path: string; paramsVal: Record<string, string> }
     >,
     parts: string[]
-  ) {
+  ): void {
     if (parts.length < 2)
-      throw new YAMLException(
+      throw new WrapperYAMLException(
         `Import directive should have at least 2 parts with the following structure: <alias> <path> <params>?`
       );
 
@@ -146,7 +171,9 @@ export class DirectivesHandler {
     // verify path
     const isYamlPath = pathRegex.test(path);
     if (!isYamlPath)
-      throw new YAMLException(`This is not a valid YAML file path: ${path}`);
+      throw new WrapperYAMLException(
+        `This is not a valid YAML file path: ${path}`
+      );
 
     // create params value object
     const paramsVal: Record<string, string> = {};
@@ -154,7 +181,7 @@ export class DirectivesHandler {
       const split = param.split("=");
 
       if (split.length !== 2)
-        throw new YAMLException(
+        throw new WrapperYAMLException(
           `Params in Import directive should have the following structure: key=value`
         );
 
@@ -170,7 +197,7 @@ export class DirectivesHandler {
    * @param str - string which will be checked.
    * @returns boolean that indicates if line is empty or not.
    */
-  #isEmptyLine(str: string) {
+  #isEmptyLine(str: string): boolean {
     return str.trim().length > 0;
   }
 }

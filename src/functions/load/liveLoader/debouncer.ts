@@ -1,22 +1,39 @@
+/**
+ * Class that is used to debounce file reads in live loader.
+ */
 export class Debouncer<T> {
+  /** Boolean that indicate if debounce is currently looping and executing functions. */
   #isExecuting: boolean = false;
+
+  /** Time interval that will be used to debounce. */
   #timeInterval: number = 200;
 
   /** Next function to execute. */
   #nextFunc!: () => Promise<T> | T;
 
-  /** Promises awaiting. */
+  /** Array that hold resolvers of the promises awaiting. */
   #promises: { res: (val: any) => any; rej: (err: any) => void }[] = [];
 
+  /**
+   * @param timeInterval - Time interval that will be used to debounce.
+   */
   constructor(timeInterval = 200) {
     this.#timeInterval = timeInterval;
   }
 
-  setInterval(ms: number) {
+  /**
+   * Method to reset time interval.
+   * @param ms - New time interval in seconds.
+   */
+  setInterval(ms: number): void {
     this.#timeInterval = ms;
   }
 
-  /** Method to queue and debounce a function. */
+  /**
+   * Method to queue and debounce a function.
+   * @param func - Function that will be debounced.
+   * @returns Value of debounced function.
+   */
   async debounce(func: () => Promise<T> | T): Promise<T> {
     if (typeof func !== "function") {
       return Promise.reject(new TypeError("debounce expects a function"));
@@ -37,7 +54,9 @@ export class Debouncer<T> {
     return await promise;
   }
 
-  /** Main method for execution. */
+  /**
+   * Main method for execution. it go into a loop that take nextFunction and execute it, while also resolving promises awaiting for next execution.
+   */
   async #execute(): Promise<void> {
     // if executing return, if not start execution
     if (this.#isExecuting) return;

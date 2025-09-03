@@ -9,9 +9,15 @@ import {
 import type { Schema } from "../../../wrapperClasses/schema.js";
 import type { Type } from "../../../wrapperClasses/type.js";
 
-/** Class to handle conversion of wrapper compositeTypes into js-yaml types and wrapper schemas into js-yaml schemas. */
+/**
+ * Class to handle conversion of wrapper types into js-yaml types and wrapper schemas into js-yaml schemas.
+ */
 export class BridgeHandler {
-  /** Convert types from wrapper types to js-yaml types. */
+  /**
+   * Convert types from wrapper types to js-yaml types.
+   * @param types - Wrapper types that will be converted.
+   * @returns js-yaml types ready to passed to js-yaml schema.
+   */
   typesBridge(types: Type[] | undefined): JType[] | undefined {
     if (!types) return; // if no types return
 
@@ -39,7 +45,11 @@ export class BridgeHandler {
     return convertedTypes;
   }
 
-  /** Convert schema from wrapper schema to js-yaml schema. */
+  /**
+   * Convert schema from wrapper schema to js-yaml schema and add bridged js-yaml types to it.
+   * @param schema - Wrapper schema that will be converted.
+   * @returns js-yaml schema ready to passed to js-yaml load function.
+   */
   schemaBridge(
     schema: Schema | undefined,
     types: JType[] | undefined
@@ -49,23 +59,15 @@ export class BridgeHandler {
     // create schema of the types and return it
     switch (schema.group) {
       case "CORE":
-        if (types) return CORE_SCHEMA.extend(types);
-        else return CORE_SCHEMA;
+        return CORE_SCHEMA.extend(types ?? []);
       case "DEFAULT":
-        if (types) return DEFAULT_SCHEMA.extend(types);
-        else return DEFAULT_SCHEMA;
+        return DEFAULT_SCHEMA.extend(types ?? []);
       case "FAILSAFE":
-        if (types) return FAILSAFE_SCHEMA.extend(types);
-        else return FAILSAFE_SCHEMA;
+        return FAILSAFE_SCHEMA.extend(types ?? []);
       case "JSON":
-        if (types) return JSON_SCHEMA.extend(types);
-        else return JSON_SCHEMA;
+        return JSON_SCHEMA.extend(types ?? []);
       default:
-        if (types) return new JSchema(types);
-        else return new JSchema([]);
+        return new JSchema(types ?? []);
     }
   }
-
-  /** For now empty. if in future needed to add any internal store clear it from memory here. */
-  destroy() {}
 }

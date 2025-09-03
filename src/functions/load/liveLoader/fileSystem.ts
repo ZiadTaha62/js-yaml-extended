@@ -1,16 +1,30 @@
 import { type FSWatcher, type WatchEventType, watch } from "fs";
 
+/**
+ * Class to handle file system interactions in live loader.
+ */
 export class FileSystem {
+  /** Array that holds paths of YAML files being handled */
   #files: string[] = [];
+
+  /** Map that links each YAML file path with watcher that updates it. */
   #watchers: Map<string, FSWatcher> = new Map();
 
-  /** Method to check if file is watched. */
+  /**
+   * Method to check if YAML file is being watched.
+   * @param path - Path of the YAML file.
+   * @returns Boolean to indicate if YAML file is being watched.
+   */
   hasFile(path: string) {
     return this.#files.includes(path);
   }
 
-  /** Method to watch file changes. */
-  addFile(path: string, callback: (eventType: WatchEventType) => void) {
+  /**
+   * Method to set watcher for YAML file changes.
+   * @param path - Path of the YAML file.
+   * @param callback - Callback that will be executed every time file is changed.
+   */
+  addFile(path: string, callback: (eventType: WatchEventType) => void): void {
     // if already watched return
     if (this.#files.includes(path)) return;
 
@@ -22,8 +36,11 @@ export class FileSystem {
     this.#files.push(path);
   }
 
-  /** Method to delete watched file. */
-  deleteFile(path: string) {
+  /**
+   * Method to delete watcher of YAML file changes.
+   * @param path - Path of the YAML file.
+   */
+  deleteFile(path: string): void {
     // delete file from file's array
     const idx = this.#files.indexOf(path);
     if (idx !== -1) this.#files.splice(idx, 1);

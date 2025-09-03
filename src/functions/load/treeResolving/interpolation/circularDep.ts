@@ -3,6 +3,12 @@ export class CircularDepHandler {
   /** adjacency list: node -> set of dependencies (edges node -> dep) */
   #graph = new Map<string, Set<string>>();
 
+  /**
+   * Method to handle checking of the circular dependency.
+   * @param modulePath - Path of the current module.
+   * @param targetPath - Path of the imported module.
+   * @returns - null if no circular dependency is present or array of paths or the circular dependency.
+   */
   addDep(modulePath: string, targetPath?: string): string[] | null {
     // guard if destroyed
     if (!this.#graph) return null;
@@ -30,7 +36,11 @@ export class CircularDepHandler {
     return null;
   }
 
-  /** Method to delete dep node (strId) from graph. */
+  /**
+   * Method to delete dependency node (path of a module) from graph.
+   * @param modulePath - Path that will be deleted.
+   * @returns Boolean that indicates if path is deleted or not.
+   */
   deleteDep(modulePath: string): boolean {
     // guard if destroyed
     if (!this.#graph) return false;
@@ -51,11 +61,7 @@ export class CircularDepHandler {
     return changed;
   }
 
-  /** Method to null graph. */
-  destroy() {
-    this.#graph.clear();
-  }
-
+  /** Method to find path of circular dependency. */
   #findPath(start: string, target: string): string[] | null {
     const visited = new Set<string>();
     const path: string[] = [];

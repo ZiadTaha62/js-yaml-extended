@@ -1,33 +1,38 @@
-import { load, loadAsync } from "./functions/load/load.js";
-import { YAMLException } from "./wrapperClasses/error.js";
-import { Type } from "./wrapperClasses/type.js";
-import { Schema } from "./wrapperClasses/schema.js";
+//////// CLASSES
+import { WrapperYAMLException } from "./src/wrapperClasses/error.js";
+import { YAMLException } from "js-yaml";
+import { Type } from "./src/wrapperClasses/type.js";
+import { Schema } from "./src/wrapperClasses/schema.js";
 import {
   DEFAULT_SCHEMA,
   CORE_SCHEMA,
   JSON_SCHEMA,
   FAILSAFE_SCHEMA,
-} from "./wrapperClasses/schemaGroups.js";
+} from "./src/wrapperClasses/schemaGroups.js";
+
+//////// LOAD
+import { load, loadAsync } from "./src/functions/load/load.js";
+import { LiveLoader } from "./src/functions/load/liveLoader/liveLoader.js";
+
+//////// DUMP
+import { dump } from "js-yaml";
+
+//////// RESOLVE
+import { resolve, resolveAsync } from "./src/functions/resolve/resolve.js";
 
 export {
-  load,
-  loadAsync,
-  Type,
+  WrapperYAMLException,
   YAMLException,
+  Type,
   Schema,
   DEFAULT_SCHEMA,
   CORE_SCHEMA,
   JSON_SCHEMA,
   FAILSAFE_SCHEMA,
+  load,
+  loadAsync,
+  LiveLoader,
+  dump,
+  resolve,
+  resolveAsync,
 };
-
-import { readFileSync } from "fs";
-
-const str = readFileSync("./src/lib/test/3.yaml", "utf8");
-
-const val = await loadAsync(str, {
-  schema: new Schema([]),
-  filename: "./src/lib/test/3.yaml",
-  paramsVal: { user: "khalid", role: "sharmota" },
-});
-console.log(val, (val as any)?.jhon);

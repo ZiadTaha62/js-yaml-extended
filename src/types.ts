@@ -1,20 +1,20 @@
 import type { Type } from "./wrapperClasses/type.js";
 import type { Schema } from "./wrapperClasses/schema.js";
-import type { YAMLException } from "./wrapperClasses/error.js";
-
+import type { WrapperYAMLException } from "./wrapperClasses/error.js";
+import type { YAMLException } from "js-yaml";
 import type {
   Load,
   LoadAsync,
   InternalLoad,
   InternalLoadAsync,
 } from "./functions/load/load.js";
+import type { Resolve, ResolveAsync } from "./functions/resolve/resolve.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Classes types
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////// TYPE
 export type { Type };
-export type { Schema };
-export type { YAMLException };
 export interface TypeConstructorOptions {
   kind?: "sequence" | "scalar" | "mapping" | undefined;
   resolve?: ((data: any) => boolean) | undefined;
@@ -33,6 +33,20 @@ export interface TypeConstructorOptions {
   styleAliases?: { [x: string]: any } | undefined;
 }
 
+////////// ERROR
+export type { WrapperYAMLException };
+export type { YAMLException };
+export interface Mark {
+  buffer: string;
+  column: number;
+  line: number;
+  name: string;
+  position: number;
+  snippet: string;
+}
+
+////////// SCHEMA
+export type { Schema };
 export interface SchemaDefinition {
   implicit?: Type[] | undefined;
   explicit?: Type[] | undefined;
@@ -50,7 +64,10 @@ export let DEFAULT_SCHEMA: Schema;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Load types
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////// MAIN FUNCTIONS
 export { Load, LoadAsync, InternalLoad, InternalLoadAsync };
+
+////////// JS-YAML RELATED
 export interface LoadOptions {
   /** Path of loaded string if raw YAML string is used in load function. used in error/warning messages and to resolve relative paths. if not passed place holder "<basePath>/<strHash>.yaml" is used instead. */
   filename?: string | undefined;
@@ -70,8 +87,17 @@ export interface LoadOptions {
 export type LiveLoaderOptions = Omit<LoadOptions, "filename" | "paramsVal"> & {
   /** listener that will run with every update to files loaded in live loader. */
   onUpdate?: (path: string, eventType: "change" | "rename") => void;
+  /**
+   * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
+   * errors will be logger using console.warn(), if setted to warning will be logged. default is false.
+   */
+  logError?: boolean;
+  /**
+   * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
+   * load of this module will be reseted to null, if setted to false nothing will happen and last load value will be returned. default is false.
+   */
+  resetOnError?: boolean;
 };
-
 export type EventType = "open" | "close";
 export interface State {
   input: string;
@@ -91,7 +117,7 @@ export interface State {
   implicitTypes: Type[];
 }
 
-////////////////////////////////////////////// LOAD WRAPPER RELATED
+////////// WRAPPER RELATED
 export type ParamsCache = {
   /** Params used to load module. */
   paramsVal: Record<string, unknown> | undefined;
@@ -111,16 +137,14 @@ export type ModuleLoadCache = {
   /** Hash of the string passed to load(). */
   hashedStr: string;
   /** Load of the YAML file when no params value are passed. */
-  bluePrint: unknown;
+  blueprint: unknown;
 };
 /** Cache of the modules loaded by load functions (load, loadAsync, createLoader...). each module loaded is keyed by hash of it's resolved path. */
 export type LoadCache = Map<string, ModuleLoadCache>;
-
 /** Map that links each loadId with modules read by this load. */
 export type LoadIdsToModules = Map<string, Set<string>>;
 /** Map that links module with loadIds that read this module. */
 export type ModulesToLoadIds = Map<string, Set<string>>;
-
 /** Map the holds directives data. */
 export type DirectivesObj = {
   /** Array of node paths that are defined to be private in YAML directive. */
@@ -132,7 +156,6 @@ export type DirectivesObj = {
   /** Map of <alias> <path> <params value> for the module imports that are defined to be private in YAML directive. */
   importsMap: Map<string, { path: string; paramsVal: Record<string, string> }>;
 };
-
 export type ModuleResolveCache = DirectivesObj & {
   /** Options passed to load(). used in interpolations. */
   opts: LoadOptions;
@@ -192,13 +215,6 @@ export interface DumpOptions {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Others
+// Resolve types
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-export interface Mark {
-  buffer: string;
-  column: number;
-  line: number;
-  name: string;
-  position: number;
-  snippet: string;
-}
+export { Resolve, ResolveAsync };
