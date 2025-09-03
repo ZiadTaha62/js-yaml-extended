@@ -71,7 +71,7 @@ export class LiveLoader {
       // load str
       const load = internalLoad(
         str,
-        { ...this.#liveLoaderOpts, paramsVal, filename: path },
+        { ...this.#liveLoaderOpts, paramsVal, filename: resPath },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader
@@ -114,7 +114,7 @@ export class LiveLoader {
       // load str
       const load = await internalLoadAsync(
         str,
-        { ...this.#liveLoaderOpts, paramsVal, filename: path },
+        { ...this.#liveLoaderOpts, paramsVal, filename: resPath },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader
@@ -212,7 +212,7 @@ export class LiveLoader {
    */
   #watchCallbackFactory(
     path: string,
-    async: boolean
+    isAsync: boolean
   ): (eventType: WatchEventType) => void {
     return (e) => {
       try {
@@ -223,7 +223,7 @@ export class LiveLoader {
             resetModuleCache(path);
 
             // re-load
-            const newLoad = async
+            const newLoad = isAsync
               ? await this.addModuleAsync(path)
               : this.addModule(path);
 

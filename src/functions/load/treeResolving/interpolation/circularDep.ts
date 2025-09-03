@@ -1,6 +1,3 @@
-import { YAMLException } from "js-yaml";
-import { WrapperYAMLException } from "../../../../wrapperClasses/error.js";
-
 /** Helper class to handle circular dependency checks. */
 export class CircularDepHandler {
   /** adjacency list: node -> set of dependencies (edges node -> dep) */

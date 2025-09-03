@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { resolve, dirname } from "path";
 import { readFile as readFileAsync } from "fs/promises";
 import { readFileSync } from "fs";
 import { WrapperYAMLException } from "../../../../wrapperClasses/error.js";
@@ -8,7 +8,6 @@ import {
   InternalLoadAsync,
 } from "../../../../types.js";
 import { CircularDepHandler } from "./circularDep.js";
-import { fileNameRegex } from "../../regex.js";
 import { isInsideSandBox, isYamlFile } from "../../../helpers.js";
 
 /** Class to handle circular dependency check. */
@@ -168,12 +167,6 @@ export class ImportHandler {
    * @returns Path after file name removal.
    */
   #removeFileName(path: string): string {
-    const match = path.match(fileNameRegex);
-    if (match) {
-      const pathParts = path.split(/\/|\\/);
-      pathParts.pop();
-      return pathParts.join("/");
-    }
-    return path;
+    return isYamlFile(path) ? dirname(path) : path;
   }
 }

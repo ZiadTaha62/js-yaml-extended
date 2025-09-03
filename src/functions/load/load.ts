@@ -11,6 +11,7 @@ import { BridgeHandler } from "./helperClasses/bridge.js";
 import { DirectivesHandler } from "./helperClasses/directives.js";
 import { ResolveHandler } from "./treeResolving/resolveHandler.js";
 import { WrapperYAMLException } from "../../wrapperClasses/error.js";
+import { circularDepClass } from "./treeResolving/interpolation/import.js";
 import {
   readFile,
   readFileAsync,
@@ -138,6 +139,7 @@ export function load(str?: string, opts?: LoadOptions): unknown {
     throw err;
   } finally {
     deleteLoadIdFromCache(loadId);
+    circularDepClass.deleteLoadId(loadId);
   }
 }
 
@@ -224,6 +226,7 @@ export async function loadAsync(
     throw err;
   } finally {
     deleteLoadIdFromCache(loadId);
+    circularDepClass.deleteLoadId(loadId);
   }
 }
 

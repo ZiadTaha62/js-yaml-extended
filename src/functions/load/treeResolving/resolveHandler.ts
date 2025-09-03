@@ -486,19 +486,22 @@ export class ResolveHandler {
     anchored: boolean,
     path?: string[]
   ): unknown {
-    // get data, params and resolve function
-    const { data, params, resolve } = resolveItem;
-
     // handle data and params (data's type is unkown but params type is string)
-    const resolvedData = this.#resolveUnknown(data, id, anchored, path);
-    const resolvedParams = params && this.#resolveString(params, id);
+    const resolvedData = this.#resolveUnknown(
+      resolveItem.data,
+      id,
+      anchored,
+      path
+    );
+    const resolvedParams =
+      resolveItem.params && this.#resolveString(resolveItem.params, id);
 
     // save resolved values in the tag resolve instance
     resolveItem.data = resolvedData;
     resolveItem.params = resolvedParams;
 
     // execute the constructor function
-    const value = resolve();
+    const value = resolveItem.resolve();
     return value;
   }
 
@@ -561,24 +564,19 @@ export class ResolveHandler {
         const p = path[i];
 
         // if it's not a record then path is not true and just console a warning
-        if (!this.#isRecord(node)) {
-          console.warn(`Private path ${path} is not valid`);
-          break;
-        }
+        if (!this.#isRecord(node)) break;
 
         // in last iteraion delete the child based on the parent type
         if (path.length - 1 === i) {
           if (p in node) {
             if (Array.isArray(node)) node.splice(Number(p), 1);
             else delete node[p];
-            continue;
           }
           if (Array.isArray(node) && typeof p === "string") {
             const idx = node.indexOf(p);
             if (idx !== -1) node.splice(idx, 1);
-            continue;
           }
-          console.warn(`Private path ${path} is not valid`);
+
           continue;
         }
 
@@ -596,9 +594,6 @@ export class ResolveHandler {
             continue;
           }
         }
-
-        // if it reached until here this means that path is not valid so warn user
-        console.warn(`Private path ${path} is not valid`);
       }
     }
 

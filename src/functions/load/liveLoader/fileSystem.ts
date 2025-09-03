@@ -63,7 +63,7 @@ export class FileSystem {
     this.#files = null as unknown as string[];
     for (const w of this.#watchers.values()) {
       w.removeAllListeners();
-      w.close;
+      w.close();
     }
     this.#watchers = null as unknown as Map<string, FSWatcher>;
   }

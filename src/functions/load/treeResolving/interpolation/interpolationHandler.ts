@@ -182,10 +182,6 @@ export class Interpolation {
   handleIntScalar(str: string, id: string): string | undefined {
     if (this.isIntScalar(str)) {
       const val = this.resolve(str, id);
-      if (val && typeof val === "object")
-        console.warn(
-          `Interpolation without wrapping [] or {} is an object. wrap the expression in the appropraite type if you don't want it to be stringified.`
-        );
       return String(val);
     }
   }
@@ -202,10 +198,6 @@ export class Interpolation {
   ): Promise<string | undefined> {
     if (this.isIntScalar(str)) {
       const val = await this.resolveAsync(str, id);
-      if (val && typeof val === "object")
-        console.warn(
-          `Interpolation without wrapping [] or {} is an object. wrap the expression in the appropraite type if you don't want it to be stringified.`
-        );
       return String(val);
     }
   }
@@ -340,14 +332,13 @@ export class Interpolation {
     // update local values
     cache.localsVal.push(localsVal);
 
-    // read node
-    const val = this.#traverseNodes(blueprint, exprPath, id);
-
-    // remove added localVals
-    cache.localsVal.pop();
-
-    // return value
-    return val;
+    try {
+      // read node and return value
+      return this.#traverseNodes(blueprint, exprPath, id);
+    } finally {
+      // remove added localVals
+      cache.localsVal.pop();
+    }
   }
 
   /**
@@ -375,14 +366,13 @@ export class Interpolation {
     // update local values
     cache.localsVal.push(localsVal);
 
-    // read node
-    const val = await this.#traverseNodesAsync(blueprint, exprPath, id);
-
-    // remove added localVals
-    cache.localsVal.pop();
-
-    // return value
-    return val;
+    try {
+      // read node and return value
+      return this.#traverseNodes(blueprint, exprPath, id);
+    } finally {
+      // remove added localVals
+      cache.localsVal.pop();
+    }
   }
 
   /**
