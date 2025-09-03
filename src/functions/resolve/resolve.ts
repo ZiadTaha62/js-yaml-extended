@@ -9,17 +9,17 @@ import { resolve as pathResolve } from "path";
 
 /**
  * Function to resolve YAML files into one resolved normal syntax YAML file by resolving imports, tags, private fields etc... . works sync.
- * @param targetPath - Path of resolved file.
+ * @param outputPath - Path of resolved file.
  * @param str - Base YAML string or path of it.
  * @param opts - LoadOptions supplied to load YAML files.
  */
 export function resolve(
-  targetPath: string,
+  outputPath: string,
   str?: string,
   opts?: LoadOptions
 ): void {
   // resolve target path
-  const resPath = handleTargetPath(targetPath, opts?.basePath);
+  const resPath = handleTargetPath(outputPath, opts?.basePath);
   // make sure supplied path is yaml file
   const isYaml = isYamlFile(resPath);
   if (!isYaml)
@@ -36,17 +36,17 @@ export function resolve(
 
 /**
  * Function to resolve YAML files into one resolved normal syntax YAML file by resolving imports, tags, private fields etc... . works async.
- * @param targetPath - Path of resolved file.
+ * @param outputPath - Path of resolved file.
  * @param str - Base YAML string or path of it.
  * @param opts - LoadOptions supplied to load YAML files.
  */
 export async function resolveAsync(
-  targetPath: string,
+  outputPath: string,
   str?: string,
   opts?: LoadOptions
 ): Promise<void> {
   // resolve target path
-  const resPath = handleTargetPath(targetPath, opts?.basePath);
+  const resPath = handleTargetPath(outputPath, opts?.basePath);
   // make sure supplied path is yaml file
   const isYaml = isYamlFile(resPath);
   if (!isYaml)

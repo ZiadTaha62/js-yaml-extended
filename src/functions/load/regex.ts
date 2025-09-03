@@ -12,15 +12,11 @@ export const captureTagsRegex = /(?:^|\s)(![^\s!\{\}\[\]]+)(?=\s|$)/;
 
 /** Regex to verify structure of the tag. */
 export const tagsStrucRegex =
-  /^!(?:[A-Za-z0-9\/\\_\-#*\.@$]*!)?([A-Za-z0-9\/\\_\-#*\.@$]+)(?:\(\'([A-Za-z0-9\/\\_\-#*\.@$]+)\'\))?$/;
+  /^!(?:[A-Za-z0-9\/\\_\-#*\.@$]*!)?([A-Za-z0-9\/\\_\-#*\.@$]+)(?:\(([A-Za-z0-9\/\\_\-#*\.@$]+)\))?$/;
 
 /** Regex to capture error when invalid character is used inside regex. */
 export const invalidTagCharRegex =
   /^!(?=[\s\S]*([^A-Za-z0-9\/\\_\-#*\.@$!()']))[\s\S]+$/;
-
-/** Regex tp capture paranthesis without single quotes. */
-export const missingTagParQoutesRegex =
-  /^[\s\S]*\((?:[^\'][\s\S]*|[\s\S]*[^\'])\)$/;
 
 /** Regex to capture if a path has .yaml or .yml in it or not. */
 export const fileNameRegex = /.ya?ml$/;

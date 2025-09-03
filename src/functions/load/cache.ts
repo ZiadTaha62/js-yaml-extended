@@ -38,7 +38,7 @@ export const modulesToLoadIds: ModulesToLoadIds = new Map();
  * @param blueprint - Output from execution of the YAML string.
  * @param dirObj - Object that holds metadata about the directives.
  */
-export function addModule(
+export function addModuleCache(
   loadId: string,
   str: string,
   filename: string,
@@ -55,7 +55,7 @@ export function addModule(
   let moduleCache = modulesCache.get(resPath);
 
   // if module cache is not present create new one
-  if (!moduleCache) {
+  if (moduleCache === undefined) {
     moduleCache = {
       str,
       resPath,
@@ -87,26 +87,47 @@ export function addModule(
   ids.add(loadId);
 }
 
+export function addLoadCache(
+  filename: string,
+  paramsVal: Record<string, string> | undefined,
+  load: unknown
+) {
+  // resolve filename
+  const resPath = resolve(filename);
+
+  // get module cache
+  const moduleCache = modulesCache.get(resPath);
+  if (moduleCache === undefined) return;
+
+  // hash params
+  const hashedParams = hashObj(paramsVal ?? {});
+
+  // add load
+  moduleCache.loadCache.set(hashedParams, { paramsVal, load });
+}
+
 /**
  * Function that checks if module's data are cached and return them, if not it returns undefined.
  * @param modulePath - Url path of the module that will be deleted.
- * @param str - Strin passed to load function.
+ * @param str - Optional String passed to load function so it can verify if it has changed or not.
  * @returns Module's cache data or undefined if not present.
  */
-export function checkModuleCache(
+export function getModuleCache(
   modulePath: string | undefined,
-  str: string
+  str?: string
 ): ModuleLoadCache | undefined {
   // if no path supplied return
   if (!modulePath) return;
 
   // check if module cache is present
   const moduleCache = modulesCache.get(modulePath);
-  if (!moduleCache) return;
+  if (moduleCache === undefined) return;
 
   // 2nd step verification by comparing old and new hashed str
-  const newStrHash = hashStr(str);
-  if (newStrHash !== moduleCache.hashedStr) return;
+  if (str) {
+    const newStrHash = hashStr(str);
+    if (newStrHash !== moduleCache.hashedStr) return;
+  }
 
   // return blue print
   return moduleCache;
@@ -118,7 +139,7 @@ export function checkModuleCache(
  * @param paramsVal - Value of module params in YAML sting.
  * @returns Object that stores load value and module params used to load it.
  */
-export function checkLoadCache(
+export function getLoadCache(
   modulePath: string | undefined,
   paramsVal: Record<string, unknown> | undefined
 ): ParamsCache | undefined {
@@ -134,7 +155,6 @@ export function checkLoadCache(
 
   // get cache of this load with params using hashed params
   const cache = moduleCache.loadCache.get(hashedParams);
-  if (!cache) return;
 
   // return cache
   return cache;
@@ -144,9 +164,9 @@ export function checkLoadCache(
  * Function to reset blueprint and all loads of the module.
  * @param modulePath - Url path of the module that will be deleted.
  */
-export function resetModule(modulePath: string): void {
+export function resetModuleCache(modulePath: string): void {
   const moduleCache = modulesCache.get(modulePath);
-  if (moduleCache) {
+  if (moduleCache !== undefined) {
     moduleCache.blueprint = undefined;
     moduleCache.loadCache.clear();
   }
@@ -157,7 +177,7 @@ export function resetModule(modulePath: string): void {
  * @param loadId - Unique id that identifies this load.
  * @param modulePath - Url path of the module that will be deleted.
  */
-export function deleteModule(loadId: string, modulePath: string): void {
+export function deleteModuleCache(loadId: string, modulePath: string): void {
   // delete link between loadId (live loader id) and the path or module
   loadIdsToModules.get(loadId)?.delete(modulePath);
   modulesToLoadIds.get(modulePath)?.delete(loadId);
@@ -169,7 +189,7 @@ export function deleteModule(loadId: string, modulePath: string): void {
  * Function to delete load id along with all its links and modules cache if it was the only one utilizing them.
  * @param loadId - Unique id that identifies this load.
  */
-export function deleteLoadId(loadId: string): void {
+export function deleteLoadIdFromCache(loadId: string): void {
   // get modules of this loadId, if not present just return
   const modules = loadIdsToModules.get(loadId);
 

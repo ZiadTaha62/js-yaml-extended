@@ -1,17 +1,35 @@
 export as namespace jsyaml;
 
-export function load(str: string, opts?: LoadOptions): unknown;
+export function load(str?: string, opts?: LoadOptions): unknown;
+export function loadAsync(str?: string, opts?: LoadOptions): Promise<unknown>;
+export function resolve(
+  outputPath: string,
+  str?: string,
+  opts?: LoadOptions
+): void;
+export function resolveAsync(
+  outputPath: string,
+  str?: string,
+  opts?: LoadOptions
+): Promise<void>;
+
+export class LiveLoader {
+  constructor(opts: LiveLoaderOptions);
+  setOptions(opts: LiveLoaderOptions): void;
+  addModule(path: string, paramsVal?: Record<string, string>): unknown;
+  addModuleAsync(path: string, paramsVal?: Record<string, string>): unknown;
+  getModule(path: string): unknown;
+  getAllModules(): Record<string, unknown>;
+  deleteModule(path: string): void;
+  deleteAllModules(): void;
+  destroy(): void;
+}
 
 export class Type {
   constructor(tag: string, opts?: TypeConstructorOptions);
-  kind:
-    | "sequence"
-    | "scalar"
-    | "mapping"
-    | ("sequence" | "scalar" | "mapping")[]
-    | null;
+  kind: "sequence" | "scalar" | "mapping" | null;
   resolve(data: any): boolean;
-  construct(data: any, type?: string): any;
+  construct(data: any, type?: string, params?: string): any | Promise<any>;
   instanceOf: object | null;
   predicate: ((data: object) => boolean) | null;
   represent:
@@ -25,7 +43,7 @@ export class Type {
 }
 
 export class Schema {
-  constructor(definition: SchemaDefinition | Type[] | Type);
+  constructor(definition: SchemaDefinition | Type[] | Type, group?: Group);
   extend(types: SchemaDefinition | Type[] | Type): Schema;
 }
 
@@ -35,15 +53,46 @@ export interface LoadOptions {
   /** string to be used as a file path in error/warning messages. */
   filename?: string | undefined;
   /** function to call on warning messages. */
-  onWarning?(this: null, e: YAMLException): void;
+  onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
   /** specifies a schema to use. */
   schema?: Schema | undefined;
   /** compatibility with JSON.parse behaviour. */
   json?: boolean | undefined;
   /** listener for parse events */
   listener?(this: State, eventType: EventType, state: State): void;
-  /** Context object passed to custom special tags. */
-  uniTagsCtx?: Record<string, object>;
+  /** Path to be used as base in imports if "@base" is used, also it path of sandboxing preventin any file access outside it. if not passed cwd is used instead. */
+  basePath?: string | undefined;
+  /** Params value to be used in module (str). */
+  paramsVal?: Record<string, string> | undefined;
+}
+
+export interface LiveLoaderOptions {
+  /** function to call on warning messages. */
+  onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
+  /** specifies a schema to use. */
+  schema?: Schema | undefined;
+  /** compatibility with JSON.parse behaviour. */
+  json?: boolean | undefined;
+  /** listener for parse events */
+  listener?(this: State, eventType: EventType, state: State): void;
+  /** Path to be used as base in imports if "@base" is used, also it path of sandboxing preventin any file access outside it. if not passed cwd is used instead. */
+  basePath?: string | undefined;
+  /** listener that will run with every update to files loaded in live loader. */
+  onUpdate?: (
+    eventType: "change" | "rename",
+    path: string,
+    newLoad: unknown
+  ) => void;
+  /**
+   * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
+   * errors will be passed to onWarning function otherwise errors will be ommited. default is false.
+   */
+  warnOnError?: boolean;
+  /**
+   * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
+   * cache of this module will be reseted to null otherwise nothing will happen to old cache when error occurs in new load. default is false.
+   */
+  resetOnError?: boolean;
 }
 
 export type EventType = "open" | "close";
@@ -101,19 +150,10 @@ export interface DumpSpecialTagsOpts {
 }
 
 export interface TypeConstructorOptions {
-  kind:
-    | "sequence"
-    | "scalar"
-    | "mapping"
-    | ("sequence" | "scalar" | "mapping")[]
-    | undefined;
-  resolve?: ((data: any) => boolean | Promise<boolean>) | undefined;
+  kind: "sequence" | "scalar" | "mapping" | undefined;
+  resolve?: ((data: any) => boolean) | undefined;
   construct?:
-    | ((
-        data: any,
-        type?: string,
-        params?: string[]
-      ) => unknown | Promise<unknown>)
+    | ((data: any, type?: string, params?: string) => any | Promise<any>)
     | undefined;
   instanceOf?: object | undefined;
   predicate?: ((data: object) => boolean) | undefined;
@@ -132,6 +172,7 @@ export interface SchemaDefinition {
   explicit?: Type[] | undefined;
 }
 
+export type Group = "FAILSAFE" | "JSON" | "CORE" | "DEFAULT";
 /** only strings, arrays and plain objects: http://www.yaml.org/spec/1.2/spec.html#id2802346 */
 export let FAILSAFE_SCHEMA: Schema;
 /** only strings, arrays and plain objects: http://www.yaml.org/spec/1.2/spec.html#id2802346 */
@@ -162,4 +203,10 @@ export class YAMLException extends Error {
   message: string;
 
   mark: Mark;
+}
+
+export class WrapperYAMLException extends Error {
+  constructor(err: string);
+
+  message: string;
 }

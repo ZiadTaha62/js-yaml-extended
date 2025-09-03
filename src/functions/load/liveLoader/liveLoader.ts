@@ -1,10 +1,16 @@
-import { LiveLoaderOptions } from "../../../types.js";
+import {
+  LiveLoaderOptions,
+  WrapperYAMLException,
+  YAMLException,
+} from "../../../types.js";
 import { FileSystem } from "./fileSystem.js";
 import { Debouncer } from "./debouncer.js";
 import {
   loadIdsToModules,
-  deleteModule as deleteModuleFromCache,
-  resetModule,
+  deleteModuleCache,
+  resetModuleCache,
+  getLoadCache,
+  deleteLoadIdFromCache,
 } from "../cache.js";
 import {
   readFile,
@@ -14,6 +20,7 @@ import {
 } from "../../helpers.js";
 import type { WatchEventType } from "fs";
 import { internalLoad, internalLoadAsync } from "../load.js";
+import { circularDepClass } from "../treeResolving/interpolation/import.js";
 
 /**
  * Class that handles multiple YAML file entery points at the same time, while also watching these files and re-load them when they are changed.
@@ -32,10 +39,17 @@ export class LiveLoader {
   #liveLoaderId: string = generateId();
 
   /**
+   * @param opts - Options that controls behavior of loader.
+   */
+  constructor(opts: LiveLoaderOptions) {
+    this.setOptions(opts);
+  }
+
+  /**
    * Method to set options of the live loader.
    * @param opts - New options that will be passed.
    */
-  setLiveLoaderOptions(opts: LiveLoaderOptions) {
+  setOptions(opts: LiveLoaderOptions) {
     this.#liveLoaderOpts = { ...this.#liveLoaderOpts, ...opts };
     if (!this.#liveLoaderOpts.basePath)
       this.#liveLoaderOpts.basePath = process.cwd();
@@ -57,7 +71,7 @@ export class LiveLoader {
       // load str
       const load = internalLoad(
         str,
-        { ...this.#liveLoaderOpts, paramsVal },
+        { ...this.#liveLoaderOpts, paramsVal, filename: path },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader
@@ -72,8 +86,12 @@ export class LiveLoader {
       }
       return load;
     } catch (err) {
-      if (this.#liveLoaderOpts.logError) console.warn(err);
-      if (this.#liveLoaderOpts.resetOnError) resetModule(resPath);
+      if (this.#liveLoaderOpts.resetOnError) resetModuleCache(resPath);
+      if (this.#liveLoaderOpts.warnOnError)
+        this.#liveLoaderOpts.onWarning?.call(
+          null,
+          err as YAMLException | WrapperYAMLException
+        );
     }
   }
 
@@ -96,7 +114,7 @@ export class LiveLoader {
       // load str
       const load = await internalLoadAsync(
         str,
-        { ...this.#liveLoaderOpts, paramsVal },
+        { ...this.#liveLoaderOpts, paramsVal, filename: path },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader
@@ -111,9 +129,37 @@ export class LiveLoader {
       }
       return load;
     } catch (err) {
-      if (this.#liveLoaderOpts.resetOnError) resetModule(resPath);
-      if (this.#liveLoaderOpts.logError) console.warn(err);
+      if (this.#liveLoaderOpts.resetOnError) resetModuleCache(resPath);
+      if (this.#liveLoaderOpts.warnOnError)
+        this.#liveLoaderOpts.onWarning?.call(
+          null,
+          err as YAMLException | WrapperYAMLException
+        );
     }
+  }
+
+  /**
+   * Method to get pure load of module (with no paramsVal).
+   * @param path - Path of YAML file
+   * @returns Value of pure load or undefined if file is not loaded.
+   */
+  getModule(path: string): unknown | undefined {
+    // get resolved path
+    const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
+    return getLoadCache(resPath, undefined)?.load;
+  }
+
+  /**
+   * Method to get pure loads of all modules (with no paramsVal).
+   * @returns Object with keys file paths and value of pure load or undefined if file is not loaded.
+   */
+  getAllModules(): Record<string, unknown | undefined> {
+    // check cache using loadId to get paths utilized by the live loader
+    const paths = loadIdsToModules.get(this.#liveLoaderId);
+    if (!paths) return {};
+    let modules: Record<string, unknown> = {};
+    for (const p of paths) modules[p] = this.getModule(p);
+    return modules;
   }
 
   /**
@@ -121,10 +167,14 @@ export class LiveLoader {
    * @param path - Path of the YAML file.
    */
   deleteModule(path: string): void {
+    // get resolved path
+    const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
     // delete module's cache
-    deleteModuleFromCache(this.#liveLoaderId, path);
+    deleteModuleCache(this.#liveLoaderId, resPath);
     // delete watcher
-    this.#fileSystem.deleteFile(path);
+    this.#fileSystem.deleteFile(resPath);
+    // delete circular dep
+    circularDepClass.deleteDep(resPath, this.#liveLoaderId);
   }
 
   /**
@@ -136,6 +186,22 @@ export class LiveLoader {
     if (!paths) return;
     // if paths delete all of them
     for (const p of paths) this.deleteModule(p);
+  }
+
+  /** Method to remove class and all of its modules from memory. */
+  destroy() {
+    // delete all modules
+    this.deleteAllModules();
+    // delete loadId
+    deleteLoadIdFromCache(this.#liveLoaderId);
+    // delete circular dependencies
+    circularDepClass.deleteLoadId(this.#liveLoaderId);
+    // destroy helper classes
+    this.#debouncer.destroy();
+    this.#fileSystem.destroy();
+    // null helper classes
+    this.#debouncer = null as unknown as Debouncer<void>;
+    this.#fileSystem = null as unknown as FileSystem;
   }
 
   /**
@@ -150,27 +216,38 @@ export class LiveLoader {
   ): (eventType: WatchEventType) => void {
     return (e) => {
       try {
-        this.#debouncer.debounce(() => {
+        this.#debouncer.debounce(async () => {
           // if file is change reset it's cache then re-load it
           if (e === "change") {
             // reset module cache so it will be re-evaluated
-            resetModule(path);
+            resetModuleCache(path);
 
             // re-load
-            if (async) this.addModule(path);
-            else this.addModuleAsync(path);
+            const newLoad = async
+              ? await this.addModuleAsync(path)
+              : this.addModule(path);
+
+            // execute onUpdate
+            this.#liveLoaderOpts.onUpdate?.(e, path, newLoad);
           }
 
           // if file is renamed delete it's cache as all future loads will use the new name
-          if (e === "rename") this.deleteModule(path);
+          if (e === "rename") {
+            // delete path
+            this.deleteModule(path);
 
-          // execute listener
-          if (this.#liveLoaderOpts.onUpdate)
-            this.#liveLoaderOpts.onUpdate(path, e);
+            // execute onUpdate
+            this.#liveLoaderOpts.onUpdate?.(e, path, undefined);
+          }
         });
       } catch (err) {
-        if (this.#liveLoaderOpts.logError) console.warn(err);
-        if (this.#liveLoaderOpts.resetOnError) resetModule(path);
+        if (this.#liveLoaderOpts.resetOnError) resetModuleCache(path);
+        if (this.#liveLoaderOpts.warnOnError)
+          this.#liveLoaderOpts.onWarning?.call(
+            null,
+            err as YAMLException | WrapperYAMLException
+          );
+        this.#liveLoaderOpts.onUpdate?.(e, path, this.getModule(path));
       }
     };
   }

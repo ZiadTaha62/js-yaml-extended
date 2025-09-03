@@ -45,7 +45,7 @@ export class DirectivesHandler {
     // split directive part into lines
     const lines = parts[0]
       .split("\n")
-      .filter((l) => this.#isEmptyLine(l))
+      .filter((l) => !this.#isEmptyLine(l))
       .map((l) => l.trim());
 
     // array to hold directive lines that are related to my wrapper to delete them before passing to the parser
@@ -57,25 +57,25 @@ export class DirectivesHandler {
       const line = lines[i];
 
       // split line into parts by deviding using white space
-      const parts = line.split(" ").filter((v) => v);
+      const partsArr = line.split(" ").filter((v) => v);
 
       // according to first part (directive decleration) pass remaining parts to specific function
       const dec = parts.shift();
       switch (dec) {
         case "%PARAM":
-          this.#handleParams(paramsMap, parts);
+          this.#handleParams(paramsMap, partsArr);
           filterIdx.push(i);
           break;
         case "%PRIVATE":
-          this.#handlePrivate(privateArr, parts);
+          this.#handlePrivate(privateArr, partsArr);
           filterIdx.push(i);
           break;
         case "%IMPORT":
-          this.#handleImports(importsMap, parts);
+          this.#handleImports(importsMap, partsArr);
           filterIdx.push(i);
           break;
         case "%LOCAL":
-          this.#handleLocals(localsMap, parts);
+          this.#handleLocals(localsMap, partsArr);
           filterIdx.push(i);
           break;
       }
@@ -198,6 +198,6 @@ export class DirectivesHandler {
    * @returns boolean that indicates if line is empty or not.
    */
   #isEmptyLine(str: string): boolean {
-    return str.trim().length > 0;
+    return str.trim().length === 0;
   }
 }

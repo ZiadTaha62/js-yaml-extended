@@ -3,7 +3,7 @@ import { Interpolation } from "./interpolation/interpolationHandler.js";
 import { TagResolveItem } from "./tagResolveItem.js";
 import type {
   DirectivesObj,
-  LoadOptions,
+  HandledLoadOpts,
   ResolveCache,
   InternalLoad,
   InternalLoadAsync,
@@ -39,6 +39,9 @@ export class ResolveHandler {
     );
   }
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Main methods.
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
    * Method to create blueprint from raw load by looping through it and replacing any scalar or interpolation by BlueprintItem class that store there value and return them when needed.
    * @param rawLoad - Raw load from js-yaml execution.
@@ -94,7 +97,7 @@ export class ResolveHandler {
     directivesObj: DirectivesObj,
     paramsVal: Record<string, string>,
     loadId: string,
-    opts: LoadOptions
+    opts: HandledLoadOpts
   ): unknown {
     // generate id by concatinating loadId with resolved path or random id to uniquely identify this resolve
     const id = `${loadId}_${path ?? generateId()}`;
@@ -136,7 +139,7 @@ export class ResolveHandler {
     directivesObj: DirectivesObj,
     paramsVal: Record<string, string>,
     loadId: string,
-    opts: LoadOptions
+    opts: HandledLoadOpts
   ): Promise<unknown> {
     // generate id by concatinating loadId with resolved path or random id to uniquely identify this resolve
     const id = `${loadId}_${path ?? generateId()}`;
@@ -162,6 +165,9 @@ export class ResolveHandler {
     }
   }
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Helper methods.
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
    * Method to resolve unkown value types by checking type and using appropriate specific resolver function. it's also the place where blueprintItem is resolved. works sync.
    * @param val - Unknown value.

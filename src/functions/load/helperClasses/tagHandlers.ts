@@ -8,7 +8,6 @@ import {
   tagsStrucRegex,
   captureTagsRegex,
   invalidTagCharRegex,
-  missingTagParQoutesRegex,
 } from "../regex.js";
 
 /**
@@ -203,11 +202,6 @@ export class TagsHandler {
     const invCharMatch = tag.match(invalidTagCharRegex);
     if (invCharMatch)
       return `Tag: ${invCharMatch[0]} contains a blacklisted characher: ${invCharMatch[1]}, allowed charachters are: A-Z a-z 0-9 "\\" "/" "(" ")" "'" "." "_" "-" "#" "$" and "@" only. `;
-
-    // check if error due to missing '' in the params
-    const missQoutesMatch = tag.match(missingTagParQoutesRegex);
-    if (missQoutesMatch)
-      return `Missing signle Qoutes ('') in tag's payload: ${missQoutesMatch[0]}`;
 
     // check if error due to more that 2 "!" used
     const numExc = numChar(tag, ["!"]);

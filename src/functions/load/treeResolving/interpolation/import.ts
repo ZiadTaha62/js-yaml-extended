@@ -3,7 +3,7 @@ import { readFile as readFileAsync } from "fs/promises";
 import { readFileSync } from "fs";
 import { WrapperYAMLException } from "../../../../wrapperClasses/error.js";
 import {
-  LoadOptions,
+  HandledLoadOpts,
   InternalLoad,
   InternalLoadAsync,
 } from "../../../../types.js";
@@ -11,11 +11,11 @@ import { CircularDepHandler } from "./circularDep.js";
 import { fileNameRegex } from "../../regex.js";
 import { isInsideSandBox, isYamlFile } from "../../../helpers.js";
 
+/** Class to handle circular dependency check. */
+export const circularDepClass = new CircularDepHandler();
+
 /** Class to handle importing another YAML files. */
 export class ImportHandler {
-  /** Class to handle circular dependency check */
-  #circularDepClass: CircularDepHandler;
-
   /** Internal load function used to load imported YAML files. */
   #load: InternalLoad;
 
@@ -27,7 +27,6 @@ export class ImportHandler {
    * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
    */
   constructor(load: InternalLoad, loadAsync: InternalLoadAsync) {
-    this.#circularDepClass = new CircularDepHandler();
     this.#load = load;
     this.#loadAsync = loadAsync;
   }
@@ -45,7 +44,7 @@ export class ImportHandler {
     modulePath: string,
     targetPath: string,
     targetParams: Record<string, string>,
-    loadOpts: LoadOptions | undefined,
+    loadOpts: HandledLoadOpts,
     loadId: string
   ) {
     // remove file name from module path if present
@@ -55,7 +54,8 @@ export class ImportHandler {
     const resPath = this.#handlePath(
       loadOpts?.basePath ?? process.cwd(),
       dirModulePath,
-      targetPath
+      targetPath,
+      loadId
     );
 
     // read YAML file and get string
@@ -89,7 +89,7 @@ export class ImportHandler {
     modulePath: string,
     targetPath: string,
     targetParams: Record<string, string>,
-    loadOpts: LoadOptions | undefined,
+    loadOpts: HandledLoadOpts,
     loadId: string
   ) {
     // remove file name from module path if present
@@ -99,7 +99,8 @@ export class ImportHandler {
     const resPath = this.#handlePath(
       loadOpts?.basePath ?? process.cwd(),
       dirModulePath,
-      targetPath
+      targetPath,
+      loadId
     );
 
     // read YAML file and get string
@@ -125,12 +126,14 @@ export class ImportHandler {
    * @param basePath - Base path defined by user in the options (or cwd if was omitted by user) that will contain and sandbox all imports.
    * @param modulePath - Path of the current YAML file.
    * @param targetPath - Path of the imported YAML file.
+   * @param loadId - Unique id that identifies this load.
    * @returns Resolved safe path that will be passed to fs readFile function.
    */
   #handlePath(
     basePath: string,
     modulePath: string,
-    targetPath: string
+    targetPath: string,
+    loadId: string
   ): string {
     // resolve path
     const resPath = resolve(modulePath, targetPath);
@@ -149,7 +152,7 @@ export class ImportHandler {
       );
 
     // detect circular dependency if present
-    const circularDep = this.#circularDepClass.addDep(modulePath, resPath);
+    const circularDep = circularDepClass.addDep(modulePath, resPath, loadId);
     if (circularDep)
       throw new WrapperYAMLException(
         `Circular dependency detected: ${circularDep.join(" -> ")}`

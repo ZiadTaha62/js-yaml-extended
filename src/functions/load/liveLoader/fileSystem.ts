@@ -57,4 +57,14 @@ export class FileSystem {
   get files() {
     return this.#files;
   }
+
+  /** Method to destroy class. */
+  destroy() {
+    this.#files = null as unknown as string[];
+    for (const w of this.#watchers.values()) {
+      w.removeAllListeners();
+      w.close;
+    }
+    this.#watchers = null as unknown as Map<string, FSWatcher>;
+  }
 }

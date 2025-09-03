@@ -94,4 +94,16 @@ export class Debouncer<T> {
     // if new promises appeared during debounce interval re execute
     if (this.#promises.length > 0) this.#execute();
   }
+
+  /** Method to destroy class. */
+  destroy() {
+    for (const { rej } of this.#promises.values()) {
+      rej(`Class is destroyed`);
+    }
+    this.#promises = null as unknown as {
+      res: (val: any) => any;
+      rej: (err: any) => void;
+    }[];
+    this.#nextFunc = null as unknown as () => T | Promise<T>;
+  }
 }

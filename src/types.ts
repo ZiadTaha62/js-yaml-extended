@@ -9,6 +9,7 @@ import type {
   InternalLoadAsync,
 } from "./functions/load/load.js";
 import type { Resolve, ResolveAsync } from "./functions/resolve/resolve.js";
+import { LiveLoader } from "./functions/load/liveLoader/liveLoader.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Classes types
@@ -72,7 +73,7 @@ export interface LoadOptions {
   /** Path of loaded string if raw YAML string is used in load function. used in error/warning messages and to resolve relative paths. if not passed place holder "<basePath>/<strHash>.yaml" is used instead. */
   filename?: string | undefined;
   /** function to call on warning messages. */
-  onWarning?(this: null, e: YAMLException): void;
+  onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
   /** specifies a schema to use. */
   schema?: Schema | undefined;
   /** compatibility with JSON.parse behaviour. */
@@ -84,14 +85,28 @@ export interface LoadOptions {
   /** Params value to be used in module (str). */
   paramsVal?: Record<string, string> | undefined;
 }
+/** Options passed to load function after being handled (basePath and paramsVal default values are added). */
+export type HandledLoadOpts = {
+  filename?: string | undefined;
+  onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
+  schema?: Schema | undefined;
+  json?: boolean | undefined;
+  listener?(this: State, eventType: EventType, state: State): void;
+  basePath: string;
+  paramsVal: Record<string, string>;
+};
 export type LiveLoaderOptions = Omit<LoadOptions, "filename" | "paramsVal"> & {
   /** listener that will run with every update to files loaded in live loader. */
-  onUpdate?: (path: string, eventType: "change" | "rename") => void;
+  onUpdate?: (
+    eventType: "change" | "rename",
+    path: string,
+    newLoad: unknown
+  ) => void;
   /**
    * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
    * errors will be logger using console.warn(), if setted to warning will be logged. default is false.
    */
-  logError?: boolean;
+  warnOnError?: boolean;
   /**
    * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
    * load of this module will be reseted to null, if setted to false nothing will happen and last load value will be returned. default is false.
@@ -136,7 +151,7 @@ export type ModuleLoadCache = {
   str: string;
   /** Hash of the string passed to load(). */
   hashedStr: string;
-  /** Load of the YAML file when no params value are passed. */
+  /** Blueprint of the YAML text used to generate loads. */
   blueprint: unknown;
 };
 /** Cache of the modules loaded by load functions (load, loadAsync, createLoader...). each module loaded is keyed by hash of it's resolved path. */
@@ -158,7 +173,7 @@ export type DirectivesObj = {
 };
 export type ModuleResolveCache = DirectivesObj & {
   /** Options passed to load(). used in interpolations. */
-  opts: LoadOptions;
+  opts: HandledLoadOpts;
 
   /** Resolved path of this module. */
   path: string | undefined;
