@@ -13,13 +13,12 @@
 - [Quickstart](#quickstart)
 - [API reference](#api-reference)
 - [Directives (syntax & semantics)](#directives-syntax--semantics)
-- [Interpolations & wrappers](#interpolations--wrappers)
+- [Expressions](#expressions)
 - [Tags with payloads](#tags-with-payloads)
-- [Evaluation order & semantics (important)](#evaluation-order--semantics-important)
-- [CLI / resolve helpers](#cli--resolve-helpers)
-- [Live reloading (LiveLoader)](#live-reloading-liveloader)
-- [Options & diagnostics](#options--diagnostics)
+- [Evaluation order & semantics](#evaluation-order--semantics)
 - [Security & sandboxing](#security--sandboxing)
+- [Architecture and Design](#architecture-and-design)
+- [Live reloading (LiveLoader)](#live-reloading-liveloader)
 - [Examples & repo layout](#examples--repo-layout)
 - [Troubleshooting / common errors](#troubleshooting--common-errors)
 - [Contributing](#contributing)
@@ -574,3 +573,27 @@ Types of parse event.
 
 Types of file system event.
 `Value`: "change" | "rename"
+
+## Directives (syntax & semantics)
+
+`Yaml-extend`
+
+## Expressions
+
+## Tags with payloads
+
+## Evaluation order & semantics
+
+## Security & sandboxing
+
+## Architecture and Design
+
+## Live reloading (LiveLoader)
+
+## Examples & repo layout
+
+## Troubleshooting / common errors
+
+## Contributing
+
+## License
