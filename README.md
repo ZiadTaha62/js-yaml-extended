@@ -1,6 +1,6 @@
 # yaml-extend
 
-**yaml-extend** — a small wrapper around [`js-yaml`] that adds focused, deterministic templating features to YAML: imports, per-module params, locals, private fields, typed interpolations and small tag payloads — with caching and a file-watching `LiveLoader`.
+**yaml-extend** — a wrapper around [`js-yaml`] that adds focused, deterministic templating features to YAML: imports, per-module params, locals, private fields, typed interpolations and small tag payloads — with caching and a file-watching `LiveLoader`.
 
 > Package name: **`yaml-extend`**
 
@@ -11,11 +11,11 @@
 - [Why yaml-extend](#why-yaml-extend)
 - [Install](#install)
 - [Quickstart](#quickstart)
+- [API reference](#api-reference)
 - [Directives (syntax & semantics)](#directives-syntax--semantics)
 - [Interpolations & wrappers](#interpolations--wrappers)
 - [Tags with payloads](#tags-with-payloads)
 - [Evaluation order & semantics (important)](#evaluation-order--semantics-important)
-- [API reference](#api-reference)
 - [CLI / resolve helpers](#cli--resolve-helpers)
 - [Live reloading (LiveLoader)](#live-reloading-liveloader)
 - [Options & diagnostics](#options--diagnostics)
@@ -27,18 +27,18 @@
 
 ---
 
-## Why yamlx
+## Why yaml-extend
 
-`yamlx` keeps YAML simple while giving you the small, practical features people build wrappers for:
+`yaml-extend` gives you the small, practical features that can greatly extend YAML language while keeping it's simplicity and favourable syntax. you can:
 
-- Import other YAML files with parameter overrides (`%IMPORT` + `$imp`)
-- Declare module params (`%PARAM`) and pass overrides from loader
-- Declare locals (`%LOCAL`) and transient locals with `$this`
-- Mark evaluation-only nodes that are removed from output (`%PRIVATE`)
-- Type-aware interpolations with explicit wrappers (`{}`, `[]`, scalar / `${}`)
-- Small tag payloads (safe, single-scalar payloads for tags like `!switch(...)`)
-- Deterministic left-to-right evaluation and immediate circular-import detection
+- Import other YAML files with module level parameter declirations.
+- Declare intra-module locals.
+- Mark evaluation-only nodes that are removed from output.
+- Reference nodes directly without need to declare anchors and aliases, reference also allows defining locals value.
+- Small tag payloads (single-scalar payloads for tags like `!switch(...)`)
 - Built-in caching and a `LiveLoader` for watch+reload workflows
+
+All of this with Deterministic left-to-right evaluation and immediate circular-import detection of course.
 
 Design goal: keep YAML familiar and simple while enabling safe, deterministic configuration templating.
 
@@ -53,3 +53,524 @@ npm install yamlx
 # yarn
 yarn add yamlx
 ```
+
+## Quickstart
+
+Being a wrapper around js-yaml library the api is almost identical, all you need to use the wrapper is to change the imports from js-yaml to yaml-extend
+
+```js
+- import { load } from "js-yaml";
++ import { load } from "yaml-extend";
+
+const str = "node: value";
+const loaded = load(str);
+```
+
+Also wrapper accept url paths for yaml files directly in the place of YAML string, it only accept files that end with .yml or .yaml
+
+```js
+import { load } from "yaml-extend";
+
+const loaded = load("./path/file.yaml");
+```
+
+Also make in mind that in order for some features like import to work you need to add some extra configirations. so don't forget to check API reference.
+
+## API reference
+
+These are all the imports from yaml-extend library
+
+```js
+import {
+  load,
+  loadAsync,
+  resolve,
+  resolveAsync,
+  LiveLoader,
+  dump,
+  Type,
+  Schema,
+  DEFAULT_SCHEMA,
+  CORE_SCHEMA,
+  JSON_SCHEMA,
+  FAILSAFE_SCHEMA,
+  YAMLException,
+  WrapperYAMLException,
+} from "yaml-extend";
+```
+
+From the first look you can notice that they are the same imports of `js-yaml` but with some extra functions/classes which are `loadAsync`, `resolve`, `resolveAsync`, `LiveLoader` and `WrapperYAMLException`.  
+Also we can notice the new async functions which are introduced to manage imports and YAML file reads without blocking the JS main thread.
+
+### Functions
+
+#### load(str: string, opts?: LoadOptions)
+
+Function to load YAML string into js value. works sync so all file system reads are sync, also all tag's construct functions executions will be treated as sync functions and not awaited. If you are using imports or async tag construct functions use loadAsync instead.
+
+- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+
+- `opts` — see [LoadOptions](#loadoptions).
+
+- `returns` — Js value of loaded YAML string.
+
+#### loadAsync(str: string, opts?: LoadOptions)
+
+Function to load YAML string into js value. works async so all file system reads are async, also all tag's construct functions executions are awaited.
+
+- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+
+- `opts` — see [LoadOptions](#loadoptions).
+
+- `returns` — Js value of loaded YAML string.
+
+#### dump(obj: any, opts?: DumpOptions)
+
+Function to dump js value into YAML string.
+
+- `obj` — Js object that will be converted to YAML string
+
+- `DumpOptions` — see [DumpOptions](#dumpoptions)
+
+- `returns` — YAML string of dumped js value.
+
+#### resolve(str: string, opts?: ResolveOptions)
+
+Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load() then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works sync.
+
+- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+
+- `opts` — see [ResolveOptions](#resolveoptions).
+
+- `returns` — Resolved YAML string.
+
+#### resolveAsync
+
+Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load() then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works async.
+
+- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+
+- `opts` — see [ResolveOptions](#resolveoptions).
+
+- `returns` — Resolved YAML string.
+
+### Classes
+
+#### Type
+
+Type to handle tags and custom data types in YAML. The only difference between js-yaml and yaml-extend inside Type class is construct function. as due to lazy evaluation of tags value in the wrapper async functions are allowed and awaited. also new params flag is present
+
+- `constructor:(tag: string, opts?: TypeConstructorOptions)` — See [`TypeConstructorOptions`](#typeconstructoroptions)
+  Type class constructor.
+  `Tag`: Tag that will be used in YAML text.
+  `TypeConstructorOptions`: Configirations and options that defines how tag handle data.
+
+- `kind: Kind | null` — See [`Kind`](#kind)
+  YAML data type that will be handled by this Tag/Type.
+
+- `resolve: (data: any) => boolean`
+  Runtime type guard used when parsing YAML to decide whether a raw node (scalar, mapping or sequence) should be treated as this custom type. Return true when the incoming data matches this type.
+  `data`: Raw node's value.
+  `returns`: Boolean to indicate if raw value should be handled using this type.
+
+- `construct: (data: any, type?: string, param?: string) => any | Promise<any>`
+  Function that will be executed on raw node to return custom data type in the load.
+  `data`: Raw node's value.
+  `type`: Type of the tag.
+  `param`: Param passed along with the tag which is single scalar value.
+  `returns`: Value that will replace node's raw value in the load.
+
+- `instanceOf: object | null`
+  Used when dumping (serializing) JS objects to YAML. If a value is an instance of the provided constructor (or matches the object prototype), the dumper can choose this type to represent it.
+
+- `predicate: ((data: object) => boolean) | null`
+  Alternative to instanceOf for dump-time detection. If predicate returns true for a JS value, the dumper can select this type to represent that object. Useful when instanceof is not possible (plain objects, duck-typing).
+
+- `represent: ((data: object) => any) | { [x: string]: (data: object) => any } | null`
+  Controls how a JS value is converted into a YAML node when serializing (dumping). Return either a primitive, array or mapping representation suitable for YAML. When provided as an object, each property maps a style name to a function that produces the representation for that style.
+
+- `representName: ((data: object) => any) | null`
+  When represent is given as a map of styles, representName chooses which style to use for a particular value at dump time. It should return the style key (e.g., "canonical" or "short").
+
+- `defaultStyle: string | null`
+  The fallback style name to use when represent provides multiple styles and representName is not present (or does not return a valid style).
+
+- `multi: boolean`
+  Indicates whether this tag/type can be used for multiple YAML tags (i.e., it is not strictly tied to a single tag). This affects how the parser/dumper treats tag resolution and may allow more flexible matching.
+
+- `styleAliases: { [x: string]: any }`
+  Map alias style names to canonical style identifiers. This lets users refer to styles by alternate names; the dumper normalizes them to the canonical style before selecting a represent function.
+
+#### Schema
+
+Schema that holds Types used for loading and dumping YAML string. The only difference between js-yaml and yaml-extend inside Schema class is additional optional group param in Schema construct, group params defines which built-in schema is used.
+
+- `constructor(definition: SchemaDefinition | Type[] | Type, group?: Group)` — See [`SchemaDefinition`](#schemadefinition) / [`Type`](#type) / [`Group`](#group)
+  Schema class constructor.
+  `definition`: Either schema definition or types that will control how parser handle tags in YAML.
+  `group`: Optional built-in schema to use.
+
+- `extend(types: SchemaDefinition | Type[] | Type) => Schema` — See [`SchemaDefinition`](#schemadefinition) / [`Type`](#type)
+  Method to extend schema by adding more types.
+  `types`: Either schema definition or types that will control how parser handle tags in YAML.
+  `returns`: Reference to the schema.
+
+#### DEFAULT_SCHEMA
+
+Default built-in schema. for more details check js-yaml docs.
+
+#### CORE_SCHEMA
+
+Core built-in shcema. for more details check js-yaml docs.
+
+#### JSON_SCHEMA
+
+Json built-in shcema. for more details check js-yaml docs.
+
+#### FAILSAFE_SCHEMA
+
+Failsafe built-in shcema. for more details check js-yaml docs.
+
+#### LiveLoader
+
+Class that handles loading multiple YAML files at the same time while watching loaded files and update there loads as files change.
+
+- `constructor(opts: LiveLoaderOptions)` — See [`LiveLoaderOptions`](#liveloaderoptions)
+  LiveLoader class constructor.
+  `opts`: Options object passed to control live loader behavior.
+
+- `setOptions(opts: LiveLoaderOptions) => void` — See [`LiveLoaderOptions`](#liveloaderoptions)
+  Method to set options of the class.
+  `opts`: Options object passed to control live loader behavior.
+
+- `addModule(path: string, paramsVal?: Record<string, string>) => unknown`
+  Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works sync so all file watch, reads are sync and tags executions are handled as sync functions and will not be awaited.
+  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `paramsVal`: Object of module params aliases and there values to be used in this load. so it's almost always better to use addModuleAsync instead.
+  `returns`: Value of loaded YAML file.
+
+- `addModuleAsync(path: string, paramsVal?: Record<string, string>) => unknown`
+  Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works async so all file watch, reads are async and tags executions will be awaited.
+  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `paramsVal`: Object of module params aliases and there values to be used in this load.
+  `returns`: Value of loaded YAML file.
+
+- `getModule(path: string) => unknown`
+  Method to get cached value of loaded module or file. note that value retuned is module's resolve when paramsVal is undefined (default params value are used).
+  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `returns`: Cached value of YAML file with default modules params or undefined if file is not loaded.
+
+- `getAllModules() => Record<string, unknown>`
+  Method to get cached value of all loaded modules or files. note that values retuned are module's resolve when paramsVal is undefined (default params value are used).
+  `returns`: Object with keys resolved paths of loaded YAML files and values cached values of YAML files with default modules params.
+
+- `deleteModule(path: string) => void`
+  Method to delete module or file from live loader.
+  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+
+- `deleteAllModules() => void`
+  Method to clear cache of live loader by deleting all modules or files from live loader.
+
+- `destroy() => void`
+  Method to clear live loader along with all of its watchers and cache from memory.
+
+#### YAMLException
+
+Error object when js-yaml parse error it thrown.
+
+- `constructor(reason?: string, mark?: Mark)` — See [`Mark`](#mark)
+  YAMLException class constructor
+  `reason`: Reason of the error.
+  `mark`: Mark object that defines error's details.
+
+- `toString(compact?: boolean) => string`
+  Method to convert Error object into string.
+  `compact`: Boolean to indicated if output error string should be compacted.
+  `returns`: Stringified error.
+
+- `name: string`
+  Name of the error.
+
+- `reason: string`
+  Reason of the error.
+
+- `message: string`
+  Message of the error.
+
+- `mark: Mark`
+  Object that defines error's details.
+
+#### WrapperYAMLException
+
+Error object when yaml-extend resolve error is thrown. One of the down sides of being a wrapper is inability to gether error details (exact line, positions... of the error). but error messages contains the file path along with incorrent interpolation.
+
+- `constructor(err: string)`
+  WrapperYAMLException class constructor
+  `err`: Thrown error.
+
+- `message: string`
+  Message of the error.
+
+### Interfaces
+
+#### LoadOptions
+
+Options object passed to control load behavior. basePath and paramsVal are added and filename affects more load behaviors.
+
+- `basePath?: string | undefined` — Default: `process.cwd()`
+  URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
+
+- `filename?: string | undefined` — Default: `undefined`
+  The resolved path of the YAML source. Useful for error messages, caching, and resolving relative imports. If you call `load("./file.yaml")` the loader should set this to the resolved absolute path automatically. `Note that imports and caching will not work if filename is not supplied here or in function's str field`.
+
+- `onWarning?: ((this: null, err: YAMLException | WrapperYAMLException) => void) | undefined` — Default: `undefined` — see [`YAMLException`](#yamlexception) / [`WrapperYAMLException`](#wrapperyamlexception)
+  Function to call on warning messages.
+  `err`: Error thrown either YAMLException or WrapperYAMLException.
+
+- `schema?: Schema | undefined` — Default: `undefined` — See [`Schema`](#schema)
+  Specific schema to use.
+
+- `json?: boolean | undefined` — Default: `undefined`
+  Compatibility with JSON.parse behaviour.
+
+- `listener?: ((this: State, eventType: ParseEventType, state: State) => void) | undefined` — Default: `undefined` — see [`ParseEventType`](#parseeventtype) / [`State`](#state)
+  Listener for parse events.
+  `eventType`: Type of the parse event. either close or open.
+  `state`: State of the current parse.
+
+- `paramsVal?: Record<string, string> | undefined` — Default: `undefined`
+  Mapping of module param aliases to string values that will be used to resolve %PARAM declarations in the module. Loader-supplied paramsVal should override any defaults declared with %PARAM.
+
+#### DumpOptions
+
+Options object passed to control dump behavior. Identical to js-yaml.
+
+- `indent?: number | undefined` — Default: `undefined`
+  Indentation width to use (in spaces).
+
+- `noArrayIndent?: boolean | undefined` — Default: `undefined`
+  When true, will not add an indentation level to array elements.
+
+- `skipInvalid?: boolean | undefined` — Default: `undefined`
+  Do not throw on invalid types (like function in the safe schema) and skip pairs and single values with such types.
+
+- `flowLevel?: number | undefined` — Default: `undefined`
+  Specifies level of nesting, when to switch from block to flow style for collections. -1 means block style everwhere.
+
+- `styles?: { [x: string]: any } | undefined` — Default: `undefined`
+  Each tag may have own set of styles. - "tag" => "style" map.
+
+- `schema?: Schema | undefined` — Default: `undefined` — See [`Schema`](#schema)
+  Specific schema to use.
+
+- `sortKeys?: boolean | ((a: any, b: any) => number) | undefined` — Default: `false`
+  If true, sort keys when dumping YAML. If a function, use the function to sort the keys.
+
+- `lineWidth?: number | undefined` — Default: `80`
+  Set max line width.
+
+- `noRefs?: boolean | undefined` — Default: `false`
+  If true, don't convert duplicate objects into references.
+
+- `noCompatMode?: boolean | undefined` — Default: `false`
+  If true don't try to be compatible with older yaml versions. Currently: don't quote "yes", "no" and so on, as required for YAML 1.1 .
+
+- `condenseFlow?: boolean | undefined` — Default: `false`
+  If true flow sequences will be condensed, omitting the space between `key: value` or `a, b`. Eg. `'[a,b]'` or `{a:{b:c}}`. Can be useful when using yaml for pretty URL query params as spaces are %-encoded.
+
+- `quotingType?: "'" | '"' | undefined` — Default: `'`
+  Strings will be quoted using this quoting style. If you specify single quotes, double quotes will still be used for non-printable characters.
+
+- `forceQuotes?: boolean | undefined` — Default: `false`
+  If true, all non-key strings will be quoted even if they normally don't need to.
+
+- `replacer?: ((key: string, value: any) => any) | undefined` — Default: `undefined`
+  Callback `function (key, value)` called recursively on each key/value in source object (see `replacer` docs for `JSON.stringify`).
+
+#### ResolveOptions
+
+Options object passed to control resolve behavior. Extends `LoadOptions` and `DumpOptions` with additional configirations defined below.
+
+- `outputPath?: string` — Default: `undefined`
+  URL / filesystem path to write generated resolved YAML text into.
+
+#### LiveLoaderOptions
+
+Options object passed to control liveLoader behavior.
+
+- `onUpdate?: (eventType: FileEventType, path: string, load: unknown)` — Default: `undefined` — See [`FileEventType`](#fileeventtype)
+  Function to call when a watcher detect file change.
+  `eventType`: Type of the file change event. either "change" or "rename".
+  `path`: Path of updated YAML file.
+  `load`: New load value of the YAML file or last cached load value if error is thrown.
+
+- `warnOnError?: boolean` — Default: `false`
+  How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true errors will be passed to onWarning function otherwise errors will be ommited.
+
+- `resetOnError?: boolean` — Default: `false`
+  How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true cache of this module will be reseted to null otherwise nothing will happen to old cache when error is thrown.
+
+- `basePath?: string` — Default: `process.cwd()`
+  URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
+
+- `onWarning?: (this: null, err: YAMLException | WrapperYAMLException) => void` — Default: `undefined` — see [`YAMLException`](#yamlexception) / [`WrapperYAMLException`](#wrapperyamlexception)
+  Function to call on warning messages.
+  `err`: Error thrown either YAMLException or WrapperYAMLException.
+
+- `schema?: Schema` — Default: `undefined` — See [`Schema`](#schema)
+  Specific schema to use.
+
+- `json?: boolean` — Default: `undefined`
+  Compatibility with JSON.parse behaviour.
+
+- `listener?: (this: State, eventType: ParseEventType, state: State) => void` — Default: `undefined` — see [`ParseEventType`](#parseeventtype) / [`State`](#state)
+  Listener for parse events.
+  `eventType`: Type of the parse event. either "close" or "open".
+  `state`: State of the current parse.
+
+#### TypeConstructorOptions
+
+Configirations and options that defines how tag handle data.
+
+- `kind?: Kind | undefined` — Default: `undefined` — See [`Kind`](#kind)
+  YAML data type that will be handled by this Tag/Type.
+
+- `resolve?: ((data: any) => boolean) | undefined` — Default: `undefined`
+  Runtime type guard used when parsing YAML to decide whether a raw node (scalar, mapping or sequence) should be treated as this custom type. Return true when the incoming data matches this type.
+  `data`: Raw node's value.
+  `returns`: Boolean to indicate if raw value should be handled using this type.
+
+- `construct?: ((data: any, type?: string, param?: string) => any | Promise<any>) | undefined` — Default: `undefined`
+  Function that will be executed on raw node to return custom data type in the load.
+  `data`: Raw node's value.
+  `type`: Type of the tag.
+  `param`: Param passed along with the tag which is single scalar value.
+  `returns`: Value that will replace node's raw value in the load.
+
+- `instanceOf?: object | undefined` — Default: `undefined`
+  Used when dumping (serializing) JS objects to YAML. If a value is an instance of the provided constructor (or matches the object prototype), the dumper can choose this type to represent it.
+
+- `predicate?: ((data: object) => boolean) | undefined` — Default: `undefined`
+  Alternative to instanceOf for dump-time detection. If predicate returns true for a JS value, the dumper can select this type to represent that object. Useful when instanceof is not possible (plain objects, duck-typing).
+  `data`: Raw node's value.
+  `returns`: Boolean to indicate if type will represent object or not while dumping.
+
+- `represent?: ((data: object) => any) | { [x: string]: (data: object) => any } | undefined` — Default: `undefined`
+  Controls how a JS value is converted into a YAML node when serializing (dumping). Return either a primitive, array or mapping representation suitable for YAML. When provided as an object, each property maps a style name to a function that produces the representation for that style.
+
+- `representName?: ((data: object) => any) | undefined` — Default: `undefined`
+  When represent is given as a map of styles, representName chooses which style to use for a particular value at dump time. It should return the style key (e.g., "canonical" or "short").
+  `data`: Raw node's value.
+  `returns`: Style key of represent.
+
+- `defaultStyle?: string | undefined` — Default: `undefined`
+  The fallback style name to use when represent provides multiple styles and representName is not present (or does not return a valid style).
+
+- `multi?: boolean | undefined` — Default: `undefined`
+  Indicates whether this tag/type can be used for multiple YAML tags (i.e., it is not strictly tied to a single tag). This affects how the parser/dumper treats tag resolution and may allow more flexible matching.
+
+- `styleAliases?: ({ [x: string]: any }) | undefined` — Default: `undefined`
+  Map alias style names to canonical style identifiers. This lets users refer to styles by alternate names; the dumper normalizes them to the canonical style before selecting a represent function.
+
+#### SchemaDefinition
+
+Definition of schema by supplying both implicit and explicit types.
+
+- `implicit?: Type[] | undefined` — Default: `undefined` — See [`Type`](#type)
+  Internal YAML tags or types.
+
+- `explicit?: Type[] | undefined` — Default: `undefined` — See [`Type`](#type)
+  Extenral YAML tags or types.
+
+#### State
+
+State of the YAML file parse.
+
+- `input: string`
+  The raw YAML text being parsed.
+
+- `filename: string | null`
+  Resolved path for the YAML source.
+
+- `schema: Schema`
+  The `Schema` instance currently in use.
+
+- `onWarning: (this: null, e: YAMLException) => void`
+  Optional callback invoked for non-fatal parse warnings.
+
+- `json: boolean`
+  If true, parser attempts to behave like `JSON.parse` where applicable (restricts some YAML behaviors for JSON compatibility).
+
+- `length: number`
+  The total length (number of characters) of `input`.
+
+- `position: number`
+  Current zero-based index within `input` where the parser is reading.
+
+- `line: number`
+  Current line number (zero-based).
+
+- `lineStart: number`
+  The index in `input` where the current line begins. Combined with `position` to compute the `column`.
+
+- `lineIndent: number`
+  Number of spaces (indent) at the current line.
+
+- `version: null | number`
+  YAML version (e.g. 1.1, 1.2) if the document declares one; otherwise null.
+
+- `checkLineBreaks: boolean`
+  Whether to validate line-break characters strictly.
+
+- `kind: string`
+  Internal marker describing the current parsing context (for example document, mapping, sequence, etc.).
+
+- `result: any`
+  The partially- or fully-parsed JavaScript value produced so far for the current document. Updated as nodes are constructed.
+
+- `implicitTypes: Type[]`
+  Array of `Type` instances that the parser should consider implicitly when trying to recognize scalars/values.
+
+#### Mark
+
+Mark for YAMLException that defines error's details.
+
+- `buffer: string`
+  The original input text (or the relevant buffer slice) used to produce the error.
+
+- `column: number`
+  Zero-based column number (character offset from lineStart) where the error occurred.
+
+- `line: number`
+  Zero-based line number where the problem was detected.
+
+- `name: string`
+  The logical name of the source (filename).
+
+- `position: number`
+  Absolute character index in `buffer` for the error location.
+
+- `snippet: string`
+  short excerpt from the input surrounding the error.
+
+### Enums
+
+#### Kind
+
+Kind or type of YAML data.
+`Value`: "sequence" | "scalar" | "mapping"
+
+#### Group
+
+Built-in schemas by js-yaml.
+`Value`: "DEFAULT" | "CORE" | "JSON" | "FAILSAFE";
+
+#### ParseEventType
+
+Types of parse event.
+`Value`: "close" | "open"
+
+#### FileEventType
+
+Types of file system event.
+`Value`: "change" | "rename"

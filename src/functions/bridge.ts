@@ -6,13 +6,13 @@ import {
   FAILSAFE_SCHEMA,
   JSON_SCHEMA,
 } from "js-yaml";
-import type { Schema } from "../../../wrapperClasses/schema.js";
-import type { Type } from "../../../wrapperClasses/type.js";
+import type { Schema } from "../wrapperClasses/schema.js";
+import type { Type } from "../wrapperClasses/type.js";
 
 /**
  * Class to handle conversion of wrapper types into js-yaml types and wrapper schemas into js-yaml schemas.
  */
-export class BridgeHandler {
+class BridgeHandler {
   /**
    * Convert types from wrapper types to js-yaml types.
    * @param types - Wrapper types that will be converted.
@@ -71,3 +71,8 @@ export class BridgeHandler {
     }
   }
 }
+
+/**
+ * Bridge handler class instance that is used to convert wrapper classes (schema and type) into js-yaml classes.
+ */
+export const bridgeHandler = new BridgeHandler();

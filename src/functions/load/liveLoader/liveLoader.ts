@@ -237,7 +237,7 @@ export class LiveLoader {
             this.deleteModule(path);
 
             // execute onUpdate
-            this.#liveLoaderOpts.onUpdate?.(e, path, undefined);
+            this.#liveLoaderOpts.onUpdate?.(e, path, null);
           }
         });
       } catch (err) {

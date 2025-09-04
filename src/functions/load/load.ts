@@ -1,4 +1,4 @@
-import { load as JLoad } from "js-yaml";
+import { load as JLoad, YAMLException } from "js-yaml";
 import type { LoadOptions as jLoadOptions } from "js-yaml";
 import type {
   DirectivesObj,
@@ -7,7 +7,7 @@ import type {
   HandledLoadOpts,
 } from "../../types.js";
 import { TagsHandler } from "./helperClasses/tagHandlers.js";
-import { BridgeHandler } from "./helperClasses/bridge.js";
+import { bridgeHandler } from "../bridge.js";
 import { DirectivesHandler } from "./helperClasses/directives.js";
 import { ResolveHandler } from "./treeResolving/resolveHandler.js";
 import { WrapperYAMLException } from "../../wrapperClasses/error.js";
@@ -43,11 +43,6 @@ const directivesHandler: DirectivesHandler = new DirectivesHandler();
 const tagsHandler: TagsHandler = new TagsHandler();
 
 /**
- * Bridge handler class instance that is used to convert wrapper classes (schema and type) into js-yaml classes.
- */
-const bridgeHandler: BridgeHandler = new BridgeHandler();
-
-/**
  * Resolve handler class that is used to resolve the raw node tree passed from js-yaml (handle tags and interpolation expressions).
  */
 const resolveHandler: ResolveHandler = new ResolveHandler(
@@ -65,7 +60,13 @@ const resolveHandler: ResolveHandler = new ResolveHandler(
  * @param opts - Options object passed to load function.
  * @returnsL Loaded YAML string into js object.
  */
-export function load(str?: string, opts?: LoadOptions): unknown {
+export function load(str: string, opts?: LoadOptions): unknown {
+  // if no str present throw an error
+  if (str === undefined)
+    throw new YAMLException(
+      `You should pass either YAML string or url path of YAML file in str.`
+    );
+
   // set new loadId
   const loadId = generateId();
 
@@ -73,7 +74,7 @@ export function load(str?: string, opts?: LoadOptions): unknown {
   const handledOpts = handleOpts(opts);
 
   // check if string passed is actually a url, if yes read the file and update both str and filename of opts
-  const match = str?.match(pathRegex);
+  const match = str.match(pathRegex);
   if (match) {
     handledOpts.filename = resolve(handledOpts.basePath!, str!);
     str = rootFileRead(handledOpts);
@@ -151,9 +152,15 @@ export function load(str?: string, opts?: LoadOptions): unknown {
  * @returnsL Loaded YAML string into js object.
  */
 export async function loadAsync(
-  str?: string,
+  str: string,
   opts?: LoadOptions
 ): Promise<unknown> {
+  // if no str present throw an error
+  if (str === undefined)
+    throw new YAMLException(
+      `You should pass either YAML string or url path of YAML file in str.`
+    );
+
   // set new loadId
   const loadId = generateId();
 
@@ -161,14 +168,11 @@ export async function loadAsync(
   const handledOpts = handleOpts(opts);
 
   // check if string passed is actually a url, if yes read the file and update both str and filename of opts
-  const match = str?.match(pathRegex);
+  const match = str.match(pathRegex);
   if (match) {
     handledOpts.filename = resolve(handledOpts.basePath!, str!);
     str = await rootFileReadAsync(handledOpts);
   }
-
-  // if no string present read file using options's filename
-  if (str === undefined) str = await rootFileReadAsync(handledOpts);
 
   try {
     // define vars that will hold blueprint and dirObj

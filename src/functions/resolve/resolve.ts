@@ -1,6 +1,6 @@
 import { load, loadAsync } from "../load/load.js";
-import { dump } from "js-yaml";
-import { LoadOptions } from "../../types.js";
+import { dump } from "../dump/dump.js";
+import { ResolveOptions } from "../../types.js";
 import { isYamlFile } from "../helpers.js";
 import { WrapperYAMLException } from "../../wrapperClasses/error.js";
 import { writeFileSync } from "fs";
@@ -9,56 +9,57 @@ import { resolve as pathResolve } from "path";
 
 /**
  * Function to resolve YAML files into one resolved normal syntax YAML file by resolving imports, tags, private fields etc... . works sync.
- * @param outputPath - Path of resolved file.
  * @param str - Base YAML string or path of it.
  * @param opts - LoadOptions supplied to load YAML files.
  */
-export function resolve(
-  outputPath: string,
-  str?: string,
-  opts?: LoadOptions
-): void {
-  // resolve target path
-  const resPath = handleTargetPath(outputPath, opts?.basePath);
-  // make sure supplied path is yaml file
-  const isYaml = isYamlFile(resPath);
-  if (!isYaml)
-    throw new WrapperYAMLException(
-      `Target path supplied to resolve function is not YALM file.`
-    );
+export function resolve(str: string, opts?: ResolveOptions): string {
   // read file
   const loaded = load(str, opts);
   // dump file
   const dumped = dump(loaded);
-  // write file into supplied path
-  writeFileSync(resPath, dumped, { encoding: "utf8" });
+  // if output path is supplied write file
+  if (opts?.outputPath) {
+    // resolve target path
+    const resPath = handleTargetPath(opts.outputPath, opts.basePath);
+    // make sure supplied path is yaml file
+    const isYaml = isYamlFile(resPath);
+    if (!isYaml)
+      throw new WrapperYAMLException(
+        `Target path supplied to resolve function is not YALM file.`
+      );
+    writeFileSync(resPath, dumped, { encoding: "utf8" });
+  }
+  // return dumped value
+  return dumped;
 }
 
 /**
  * Function to resolve YAML files into one resolved normal syntax YAML file by resolving imports, tags, private fields etc... . works async.
- * @param outputPath - Path of resolved file.
  * @param str - Base YAML string or path of it.
  * @param opts - LoadOptions supplied to load YAML files.
  */
 export async function resolveAsync(
-  outputPath: string,
-  str?: string,
-  opts?: LoadOptions
-): Promise<void> {
-  // resolve target path
-  const resPath = handleTargetPath(outputPath, opts?.basePath);
-  // make sure supplied path is yaml file
-  const isYaml = isYamlFile(resPath);
-  if (!isYaml)
-    throw new WrapperYAMLException(
-      `Target path supplied to resolve function is not YALM file.`
-    );
+  str: string,
+  opts?: ResolveOptions
+): Promise<string> {
   // read file
   const loaded = await loadAsync(str, opts);
   // dump file
-  const dumped = dump(loaded);
-  // write file into supplied path
-  await writeFileAsync(resPath, dumped, { encoding: "utf8" });
+  const dumped = dump(loaded, opts);
+  // if output path is supplied write file
+  if (opts?.outputPath) {
+    // resolve target path
+    const resPath = handleTargetPath(opts.outputPath, opts.basePath);
+    // make sure supplied path is yaml file
+    const isYaml = isYamlFile(resPath);
+    if (!isYaml)
+      throw new WrapperYAMLException(
+        `Target path supplied to resolve function is not YALM file.`
+      );
+    writeFileAsync(resPath, dumped, { encoding: "utf8" });
+  }
+  // return dumped value
+  return dumped;
 }
 
 /**

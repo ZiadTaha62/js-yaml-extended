@@ -70,7 +70,13 @@ export { Load, LoadAsync, InternalLoad, InternalLoadAsync };
 
 ////////// JS-YAML RELATED
 export interface LoadOptions {
-  /** Path of loaded string if raw YAML string is used in load function. used in error/warning messages and to resolve relative paths. if not passed place holder "<basePath>/<strHash>.yaml" is used instead. */
+  /**
+   * URL path that will sandbox YAML file imports. it will prevent any external file access and act as base path when URL path is passed to `LoadOptions.filename` or
+   * when `@base/path/file.yaml` is used inside YAML string for imports. for example if "./path" is used when you supply filename "./file.yaml" the resolved filename will
+   * be "./path/file.yaml". default is process.cwd().
+   */
+  basePath?: string | undefined;
+  /** URL path of YAML string. `It should be passed to allow imports and caching`. defualt in undefined. */
   filename?: string | undefined;
   /** function to call on warning messages. */
   onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
@@ -80,8 +86,6 @@ export interface LoadOptions {
   json?: boolean | undefined;
   /** listener for parse events */
   listener?(this: State, eventType: EventType, state: State): void;
-  /** Path to be used as base in imports if "@base" is used, also it path of sandboxing preventin any file access outside it. if not passed cwd is used instead. */
-  basePath?: string | undefined;
   /** Params value to be used in module (str). */
   paramsVal?: Record<string, string> | undefined;
 }
@@ -95,6 +99,7 @@ export type HandledLoadOpts = {
   basePath: string;
   paramsVal: Record<string, string>;
 };
+
 export type LiveLoaderOptions = Omit<LoadOptions, "filename" | "paramsVal"> & {
   /** listener that will run with every update to files loaded in live loader. */
   onUpdate?: (
@@ -102,6 +107,7 @@ export type LiveLoaderOptions = Omit<LoadOptions, "filename" | "paramsVal"> & {
     path: string,
     newLoad: unknown
   ) => void;
+
   /**
    * How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true
    * errors will be logger using console.warn(), if setted to warning will be logged. default is false.
@@ -233,3 +239,8 @@ export interface DumpOptions {
 // Resolve types
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 export { Resolve, ResolveAsync };
+export type ResolveOptions = LoadOptions &
+  DumpOptions & {
+    /** Path to write resolved file. */
+    outputPath?: string;
+  };
