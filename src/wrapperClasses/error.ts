@@ -1,5 +1,39 @@
 export class WrapperYAMLException extends Error {
-  constructor(err: string) {
-    super(err);
+  name: string;
+  filepath: string;
+  reason: string;
+
+  constructor(reason: string, filepath?: string, name?: string) {
+    // define additional data
+    let additionalData = "";
+    if (filepath && name)
+      additionalData = `This error occured in file: ${name} at path: ${filepath}`;
+    else {
+      if (filepath) additionalData = `This error occured at path: ${filepath}`;
+      if (name) additionalData = `This error occured in file: ${name}`;
+    }
+    // construct full message
+    const message = reason + additionalData;
+    // set message by passing it to super
+    super(message);
+    // set reason, name and filepath
+    this.reason = reason;
+    this.name = name ?? "";
+    this.filepath = filepath ?? "";
+  }
+
+  setAdditionalData(filepath: string | undefined, name: string | undefined) {
+    // define additional data
+    let additionalData = "";
+    if (filepath && name)
+      additionalData = `This error occured in file: ${name} at path: ${filepath}`;
+    else {
+      if (filepath) additionalData = `This error occured at path: ${filepath}`;
+      if (name) additionalData = `This error occured in file: ${name}`;
+    }
+    // construct full message
+    const message = this.reason + additionalData;
+    // set message by modifiying it directly
+    this.message = message;
   }
 }

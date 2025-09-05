@@ -1,17 +1,14 @@
 import { resolve, dirname } from "path";
 import { readFile as readFileAsync } from "fs/promises";
 import { readFileSync } from "fs";
-import { WrapperYAMLException } from "../../../../wrapperClasses/error.js";
+import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
 import {
   HandledLoadOpts,
   InternalLoad,
   InternalLoadAsync,
-} from "../../../../types.js";
-import { CircularDepHandler } from "./circularDep.js";
-import { isInsideSandBox, isYamlFile } from "../../../helpers.js";
-
-/** Class to handle circular dependency check. */
-export const circularDepClass = new CircularDepHandler();
+} from "../../../types.js";
+import { circularDepClass } from "../../circularDep.js";
+import { isInsideSandBox, isYamlFile } from "../../helpers.js";
 
 /** Class to handle importing another YAML files. */
 export class ImportHandler {
@@ -22,8 +19,8 @@ export class ImportHandler {
   #loadAsync: InternalLoadAsync;
 
   /**
-   * @param load - Reference to internalLoad function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
-   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
+   * @param load - Reference to internalLoad function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
+   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
    */
   constructor(load: InternalLoad, loadAsync: InternalLoadAsync) {
     this.#load = load;
@@ -35,14 +32,14 @@ export class ImportHandler {
    * @param modulePath - Path of the current YAML file.
    * @param targetPath - Path of the imported YAML file.
    * @param targetParams - Params value passed to imported YAML file.
-   * @param loadOpts - Options object passed to load function and updated using imported module's filename.
+   * @param loadOpts - Options object passed to load function and updated using imported module's filepath.
    * @param loadId - Load id generated for this load function execution.
    * @returns Final load of the imported file.
    */
   import(
     modulePath: string,
     targetPath: string,
-    targetParams: Record<string, string>,
+    targetParams: Record<string, unknown>,
     loadOpts: HandledLoadOpts,
     loadId: string
   ) {
@@ -66,7 +63,7 @@ export class ImportHandler {
       {
         ...loadOpts,
         paramsVal: targetParams,
-        filename: resPath,
+        filepath: resPath,
       },
       loadId
     );
@@ -80,14 +77,14 @@ export class ImportHandler {
    * @param modulePath - Path of the current YAML file.
    * @param targetPath - Path of the imported YAML file.
    * @param targetParams - Params value passed to imported YAML file.
-   * @param loadOpts - Options object passed to load function and updated using imported module's filename.
+   * @param loadOpts - Options object passed to load function and updated using imported module's filepath.
    * @param loadId - Load id generated for this load function execution.
    * @returns Final load of the imported file.
    */
   async importAsync(
     modulePath: string,
     targetPath: string,
-    targetParams: Record<string, string>,
+    targetParams: Record<string, unknown>,
     loadOpts: HandledLoadOpts,
     loadId: string
   ) {
@@ -111,7 +108,7 @@ export class ImportHandler {
       {
         ...loadOpts,
         paramsVal: targetParams,
-        filename: resPath,
+        filepath: resPath,
       },
       loadId
     );

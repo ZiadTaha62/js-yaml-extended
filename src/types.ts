@@ -7,9 +7,9 @@ import type {
   LoadAsync,
   InternalLoad,
   InternalLoadAsync,
-} from "./functions/load/load.js";
-import type { Resolve, ResolveAsync } from "./functions/resolve/resolve.js";
-import { LiveLoader } from "./functions/load/liveLoader/liveLoader.js";
+} from "./core/load/load.js";
+import type { Resolve, ResolveAsync } from "./core/resolve/resolve.js";
+import { LiveLoader } from "./core/liveLoader/liveLoader.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Classes types
@@ -71,12 +71,14 @@ export { Load, LoadAsync, InternalLoad, InternalLoadAsync };
 ////////// JS-YAML RELATED
 export interface LoadOptions {
   /**
-   * URL path that will sandbox YAML file imports. it will prevent any external file access and act as base path when URL path is passed to `LoadOptions.filename` or
+   * Filesystem path that will sandbox YAML file imports. it will prevent any external file access and act as base path when URL path is passed to `LoadOptions.filename` or
    * when `@base/path/file.yaml` is used inside YAML string for imports. for example if "./path" is used when you supply filename "./file.yaml" the resolved filename will
    * be "./path/file.yaml". default is process.cwd().
    */
   basePath?: string | undefined;
-  /** URL path of YAML string. `It should be passed to allow imports and caching`. defualt in undefined. */
+  /** path of the loaded file. It should be passed to allow imports and caching. defualt in undefined and is overwritten by str if filesystem path is passed. */
+  filepath?: string | undefined;
+  /** logical name of YAML string. used in error messages */
   filename?: string | undefined;
   /** function to call on warning messages. */
   onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
@@ -87,20 +89,24 @@ export interface LoadOptions {
   /** listener for parse events */
   listener?(this: State, eventType: EventType, state: State): void;
   /** Params value to be used in module (str). */
-  paramsVal?: Record<string, string> | undefined;
+  paramsVal?: Record<string, unknown> | undefined;
 }
 /** Options passed to load function after being handled (basePath and paramsVal default values are added). */
 export type HandledLoadOpts = {
   filename?: string | undefined;
+  filepath?: string | undefined;
   onWarning?(this: null, e: YAMLException | WrapperYAMLException): void;
   schema?: Schema | undefined;
   json?: boolean | undefined;
   listener?(this: State, eventType: EventType, state: State): void;
   basePath: string;
-  paramsVal: Record<string, string>;
+  paramsVal: Record<string, unknown>;
 };
 
-export type LiveLoaderOptions = Omit<LoadOptions, "filename" | "paramsVal"> & {
+export type LiveLoaderOptions = Omit<
+  LoadOptions,
+  "filename" | "filepath" | "paramsVal"
+> & {
   /** listener that will run with every update to files loaded in live loader. */
   onUpdate?: (
     eventType: "change" | "rename",
@@ -171,11 +177,11 @@ export type DirectivesObj = {
   /** Array of node paths that are defined to be private in YAML directive. */
   privateArr: string[];
   /** Map of <alias> <defualt value> for the params that are defined to be private in YAML directive. */
-  paramsMap: Map<string, string>;
+  paramsMap: Map<string, unknown>;
   /** Map of <alias> <defualt value> for the locals that are defined to be private in YAML directive. */
-  localsMap: Map<string, string>;
+  localsMap: Map<string, unknown>;
   /** Map of <alias> <path> <params value> for the module imports that are defined to be private in YAML directive. */
-  importsMap: Map<string, { path: string; paramsVal: Record<string, string> }>;
+  importsMap: Map<string, { path: string; paramsVal: Record<string, unknown> }>;
 };
 export type ModuleResolveCache = DirectivesObj & {
   /** Options passed to load(). used in interpolations. */
@@ -188,13 +194,13 @@ export type ModuleResolveCache = DirectivesObj & {
   blueprint: unknown;
 
   /** Params value passed along with load(). along with paramsMap's defualt values they are used to resolve params defined in module. */
-  paramsVal: Record<string, string>;
+  paramsVal: Record<string, unknown>;
 
   /**
    * Locals value defined after $this interpolation. along with localsMap's defualt values they are used to resolve locals defined in module.
    * array as each $this read will add it's defined locals value and delete it after being handled
    */
-  localsVal: Record<string, string>[];
+  localsVal: Record<string, unknown>[];
 };
 export type ResolveCache = Map<string, ModuleResolveCache>;
 

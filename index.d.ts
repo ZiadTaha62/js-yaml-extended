@@ -3,8 +3,8 @@ export as namespace jsyaml;
 /**
  * Function to load YAML string into js value. works sync so all file system reads are sync, also all tag's construct functions executions will be treated as sync
  * functions and not awaited. If you are using imports or async tag construct functions use loadAsync instead.
- * @param str - YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
- * using `opts.basePath` and it will overwite `opts.filename` value.
+ * @param str - YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
+ * using `opts.basePath` and it will overwite `opts.filepath` value.
  * @param opts - Options object passed to control load behavior.
  * @returns Js value of loaded YAML string.
  */
@@ -12,8 +12,8 @@ export function load(str: string, opts?: LoadOptions): unknown;
 
 /**
  * Function to load YAML string into js value. works async so all file system reads are async, also all tag's construct functions executions are awaited.
- * @param str - YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
- * using `opts.basePath` and it will overwite `opts.filename` value.
+ * @param str - YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
+ * using `opts.basePath` and it will overwite `opts.filepath` value.
  * @param opts - Options object passed to control load behavior.
  * @returns Js value of loaded YAML string.
  */
@@ -30,8 +30,8 @@ export function dump(obj: any, opts?: DumpOptions): string;
 /**
  * Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load()
  * then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works sync.
- * @param str - YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
- * using `opts.basePath` and it will overwite `opts.filename` value.
+ * @param str - YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
+ * using `opts.basePath` and it will overwite `opts.filepath` value.
  * @param opts - Options object passed to control resolve behavior.
  */
 export function resolve(str: string, opts?: ResolveOptions): void;
@@ -39,8 +39,8 @@ export function resolve(str: string, opts?: ResolveOptions): void;
 /**
  * Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load()
  * then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works async.
- * @param str - YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
- * using `opts.basePath` and it will overwite `opts.filename` value.
+ * @param str - YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved
+ * using `opts.basePath` and it will overwite `opts.filepath` value.
  * @param opts - Options object passed to control resolve behavior.
  */
 export function resolveAsync(str: string, opts?: ResolveOptions): Promise<void>;
@@ -165,24 +165,24 @@ export class LiveLoader {
    * Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that
    * imported YAML files in the read YAML string are watched as well. works sync so all file watch, reads are sync and tags executions are handled
    * as sync functions and will not be awaited.
-   * @param path - URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+   * @param path - Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
    * @param paramsVal - Object of module params aliases and there values to be used in this load. so it's almost always better to use addModuleAsync instead.
    * @returns Value of loaded YAML file.
    */
-  addModule(path: string, paramsVal?: Record<string, string>): unknown;
+  addModule(path: string, paramsVal?: Record<string, unknown>): unknown;
 
   /**
    * Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported
    * YAML files in the read YAML string are watched as well. works async so all file watch, reads are async and tags executions will be awaited.
-   * @param path - URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+   * @param path - Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
    * @param paramsVal - Object of module params aliases and there values to be used in this load.
    * @returns Value of loaded YAML file.
    */
-  addModuleAsync(path: string, paramsVal?: Record<string, string>): unknown;
+  addModuleAsync(path: string, paramsVal?: Record<string, unknown>): unknown;
 
   /**
    * Method to get cached value of loaded module or file. note that value retuned is module's resolve when paramsVal is undefined (default params value are used).
-   * @param path - URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+   * @param path - Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
    * @returns Cached value of YAML file with default modules params or undefined if file is not loaded.
    */
   getModule(path: string): unknown;
@@ -195,7 +195,7 @@ export class LiveLoader {
 
   /**
    * Method to delete module or file from live loader.
-   * @param path - URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+   * @param path - Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
    */
   deleteModule(path: string): void;
 
@@ -256,15 +256,18 @@ export class WrapperYAMLException extends Error {
 /** Options object passed to control load behavior. */
 export interface LoadOptions {
   /**
-   * URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative
+   * Filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative
    * imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
    */
   basePath?: string | undefined;
 
   /**
    * The resolved path of the YAML source. Useful for error messages, caching, and resolving relative imports. If you call `load("./file.yaml")` the loader should
-   * set this to the resolved absolute path automatically. `Note that imports and caching will not work if filename is not supplied here or in function's str field.`
+   * set this to the resolved absolute path automatically. `Note that imports and caching will not work if filepath is not supplied here or in function's str field.`
    */
+  filepath?: string | undefined;
+
+  /** String to be used as a file path in error/warning messages. */
   filename?: string | undefined;
 
   /** Function to call on warning messages. */
@@ -280,7 +283,7 @@ export interface LoadOptions {
   listener?(this: State, eventType: ParseEventType, state: State): void;
 
   /** Mapping of module param aliases to string values that will be used to resolve %PARAM declarations in the module. Loader-supplied paramsVal should override any defaults declared with %PARAM. */
-  paramsVal?: Record<string, string> | undefined;
+  paramsVal?: Record<string, unknown> | undefined;
 }
 
 /** Options object passed to control dump behavior. */
@@ -332,7 +335,7 @@ export interface DumpOptions {
 
 /** Options object passed to control resolve behavior. */
 export interface ResolveOptions extends LoadOptions, DumpOptions {
-  /** URL / filesystem path to write generated resolved YAML text into. */
+  /** Filesystem path to write generated resolved YAML text into. */
   outputPath?: string;
 }
 
@@ -359,7 +362,7 @@ export interface LiveLoaderOptions {
   resetOnError?: boolean;
 
   /**
-   * URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative
+   * Filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative
    * imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
    */
   basePath?: string | undefined;
@@ -475,7 +478,7 @@ export interface State {
   /** The raw YAML text being parsed. */
   input: string;
 
-  /** Resolved path for the YAML source. */
+  /** Logical name for YAML string. */
   filename: string | null;
 
   /** The `Schema` instance currently in use. */
@@ -531,7 +534,7 @@ export interface Mark {
   /** Zero-based line number where the problem was detected. */
   line: number;
 
-  /** The logical name of the source (filename). */
+  /** The logical name for YAML string (filename). */
   name: string;
 
   /** Absolute character index in `buffer` for the error location. */

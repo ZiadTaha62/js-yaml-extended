@@ -16,13 +16,13 @@ export class DirectivesHandler {
     /** Holds list of private node's definition. */
     const privateArr: string[] = [];
     /** Holds list of param's aliases and default values used in the module. */
-    const paramsMap: Map<string, string> = new Map();
+    const paramsMap: Map<string, unknown> = new Map();
     /** Holds list of local's aliases and default values used in the module. */
-    const localsMap: Map<string, string> = new Map();
+    const localsMap: Map<string, unknown> = new Map();
     /** Map of aliases for imports and import data as path and modules params. */
     const importsMap: Map<
       string,
-      { path: string; paramsVal: Record<string, string> }
+      { path: string; paramsVal: Record<string, unknown> }
     > = new Map();
 
     // split using regex to get directives if present
@@ -59,8 +59,11 @@ export class DirectivesHandler {
       // split line into parts by deviding using white space
       const partsArr = line.split(" ").filter((v) => v);
 
+      console.debug("Parts arr: ", partsArr);
+
       // according to first part (directive decleration) pass remaining parts to specific function
-      const dec = parts.shift();
+      const dec = partsArr.shift();
+      console.debug("Dec: ", dec);
       switch (dec) {
         case "%PARAM":
           this.#handleParams(paramsMap, partsArr);
@@ -111,7 +114,8 @@ export class DirectivesHandler {
    * @param localsMap - Reference to the map that holds local's aliases and default values and will be passed to directives object.
    * @param parts - Parts of the line.
    */
-  #handleLocals(localsMap: Map<string, string>, parts: string[]): void {
+  #handleLocals(localsMap: Map<string, unknown>, parts: string[]): void {
+    console.debug("Local is being handled");
     // make sure that alias is present
     if (parts.length < 1)
       throw new WrapperYAMLException(
@@ -122,6 +126,8 @@ export class DirectivesHandler {
     const alias = parts[0];
     const defValue = parts[1];
 
+    console.log("Alias: ", alias, " defValue: ", defValue);
+
     // add the alias with default value to the paramsMap
     localsMap.set(alias, defValue);
   }
@@ -131,7 +137,7 @@ export class DirectivesHandler {
    * @param paramsMap - Reference to the map that holds params's aliases and default values and will be passed to directives object.
    * @param parts - Parts of the line.
    */
-  #handleParams(paramsMap: Map<string, string>, parts: string[]) {
+  #handleParams(paramsMap: Map<string, unknown>, parts: string[]) {
     // make sure that alias is present
     if (parts.length < 1)
       throw new WrapperYAMLException(
@@ -154,7 +160,7 @@ export class DirectivesHandler {
   #handleImports(
     importsMap: Map<
       string,
-      { path: string; paramsVal: Record<string, string> }
+      { path: string; paramsVal: Record<string, unknown> }
     >,
     parts: string[]
   ): void {
@@ -176,7 +182,7 @@ export class DirectivesHandler {
       );
 
     // create params value object
-    const paramsVal: Record<string, string> = {};
+    const paramsVal: Record<string, unknown> = {};
     for (const param of paramsKeyVal) {
       const split = param.split("=");
 

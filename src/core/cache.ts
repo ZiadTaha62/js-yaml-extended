@@ -1,5 +1,5 @@
 import { resolve } from "path";
-import { hashObj, hashStr } from "../helpers.js";
+import { hashObj, hashStr } from "./helpers.js";
 import type {
   LoadCache,
   LoadIdsToModules,
@@ -7,11 +7,13 @@ import type {
   DirectivesObj,
   ModuleLoadCache,
   ParamsCache,
-} from "../../types.js";
+} from "../types.js";
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// This file contains all the stores (cache) used in the library (for load and LiveLoader) along with functions to interact with these stores.
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Main cache stores.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Map of all loads, which is keyed by loadId and each load id stores the important input and output of load function.
  */
@@ -29,24 +31,23 @@ export const modulesToLoadIds: ModulesToLoadIds = new Map();
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cache interaction functions.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Function to add module (str) data under existing loadId. while updating links between loadIds and modules as well.
  * @param loadId - Unique id that identifies this load.
  * @param str - YAML String passed.
- * @param filename - Path of the readed YAML file.
+ * @param filepath - Path of the readed YAML file.
  * @param blueprint - Output from execution of the YAML string.
  * @param dirObj - Object that holds metadata about the directives.
  */
 export function addModuleCache(
   loadId: string,
   str: string,
-  filename: string,
+  filepath: string,
   blueprint: unknown,
   dirObj: DirectivesObj
 ): void {
-  // resolve filename
-  const resPath = resolve(filename);
+  // resolve filepath
+  const resPath = resolve(filepath);
 
   // hash string, params and path
   const hashedStr = hashStr(str);
@@ -88,12 +89,12 @@ export function addModuleCache(
 }
 
 export function addLoadCache(
-  filename: string,
-  paramsVal: Record<string, string> | undefined,
+  filepath: string,
+  paramsVal: Record<string, unknown> | undefined,
   load: unknown
 ) {
-  // resolve filename
-  const resPath = resolve(filename);
+  // resolve filepath
+  const resPath = resolve(filepath);
 
   // get module cache
   const moduleCache = modulesCache.get(resPath);

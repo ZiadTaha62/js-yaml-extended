@@ -1,4 +1,6 @@
-/** Helper class to handle circular dependency checks. */
+/**
+ * Class to handle circular dependency checks.
+ */
 export class CircularDepHandler {
   /** adjacency list: node -> set of dependencies (edges node -> dep) */
   #graphs: Map<string, Map<string, Set<string>>> = new Map();
@@ -102,3 +104,6 @@ export class CircularDepHandler {
     return dfs(start) ? [...path] : null;
   }
 }
+
+/** Class to handle circular dependency check. */
+export const circularDepClass = new CircularDepHandler();

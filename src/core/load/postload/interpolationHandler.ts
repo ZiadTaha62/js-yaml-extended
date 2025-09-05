@@ -1,10 +1,10 @@
-import { WrapperYAMLException } from "../../../../wrapperClasses/error.js";
+import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
 import {
   ResolveCache,
   InternalLoad,
   InternalLoadAsync,
-} from "../../../../types.js";
-import { BlueprintItem } from "../blueprintItem.js";
+} from "../../../types.js";
+import { BlueprintItem } from "../lazyLoadClasses/blueprintItem.js";
 import { ImportHandler } from "./import.js";
 
 /** Message that will be sent if an error occured during resolving that should not happen. */
@@ -40,8 +40,8 @@ export class Interpolation {
    * @param resolveCache - Reference to resolve cache of parent resolveHandler class.
    * @param resolveUnknown - Reference to resolveUnknown method of parent resolveHandler class. passed like this to avoid circular dependency.
    * @param resolveUnknownAsync - Reference to resolveUnknownAsync method of parent resolveHandler class. passed like this to avoid circular dependency.
-   * @param load - Reference to internalLoad function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
-   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
+   * @param load - Reference to internalLoad function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
+   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
    */
   constructor(
     resolveCache: ResolveCache,
@@ -105,13 +105,9 @@ export class Interpolation {
    * @param id - Unique id generated for this resolve executiion, used to access cache.
    * @returns Resolved value of mapping interpolation.
    */
-  handleIntMapping(ent: [string, unknown][], id: string): object | undefined {
+  handleIntMapping(ent: [string, unknown][], id: string): unknown | undefined {
     if (this.isIntMapping(ent)) {
       const val = this.resolve(ent[0][0], id);
-      if (typeof val !== "object" || val == null || Array.isArray(val))
-        throw new WrapperYAMLException(
-          `Interpolation: ${ent[0][0]} is wrapped inside {} but it's value is not a mapping.`
-        );
       return val;
     }
   }
@@ -125,13 +121,9 @@ export class Interpolation {
   async handleIntMappingAsync(
     ent: [string, unknown][],
     id: string
-  ): Promise<object | undefined> {
+  ): Promise<unknown | undefined> {
     if (this.isIntMapping(ent)) {
       const val = await this.resolveAsync(ent[0][0], id);
-      if (typeof val !== "object" || val == null || Array.isArray(val))
-        throw new WrapperYAMLException(
-          `Interpolation: ${ent[0][0]} is wrapped inside {} but it's value is not a mapping.`
-        );
       return val;
     }
   }
@@ -142,13 +134,9 @@ export class Interpolation {
    * @param id - Unique id generated for this resolve executiion, used to access cache.
    * @returns Resolved value of sequence interpolation.
    */
-  handleIntSequence(arr: unknown[], id: string): unknown[] | undefined {
+  handleIntSequence(arr: unknown[], id: string): unknown | undefined {
     if (this.isIntSequence(arr)) {
       const val = this.resolve(arr[0] as string, id);
-      if (!Array.isArray(val))
-        throw new WrapperYAMLException(
-          `Interpolation: ${arr[0]} is wrapped inside [] but it's value is not a sequence.`
-        );
       return val;
     }
   }
@@ -162,13 +150,9 @@ export class Interpolation {
   async handleIntSequenceAsync(
     arr: unknown[],
     id: string
-  ): Promise<unknown[] | undefined> {
+  ): Promise<unknown | undefined> {
     if (this.isIntSequence(arr)) {
       const val = await this.resolveAsync(arr[0] as string, id);
-      if (!Array.isArray(val))
-        throw new WrapperYAMLException(
-          `Interpolation: ${arr[0]} is wrapped inside [] but it's value is not a sequence.`
-        );
       return val;
     }
   }
@@ -219,17 +203,17 @@ export class Interpolation {
     switch (exprBase) {
       case "this":
         return this.#handleThisInt(exprPath, payload, id);
-      case "imp":
+      case "import":
         return this.#handleImpInt(exprPath, payload, id);
       case "param":
         return this.#handleParamInt(exprPath, payload, id);
       case "local":
         return this.#handleLocalInt(exprPath, payload, id);
       case "ts":
-        return `$${int}`; // will be handled in ts-builder
+        return `${int}`; // will be handled in ts-builder
       default:
         throw new WrapperYAMLException(
-          `Invalid base in interpolation: ${int} defined bases are: 'this' , 'imp' and 'param'`
+          `Invalid base in interpolation: ${int} defined bases are: 'this' , 'import' and 'param'`
         );
     }
   }
@@ -248,7 +232,7 @@ export class Interpolation {
     switch (exprBase) {
       case "this":
         return await this.#handleThisIntAsync(exprPath, payload, id);
-      case "imp":
+      case "import":
         return await this.#handleImpIntAsync(exprPath, payload, id);
       case "param":
         return this.#handleParamInt(exprPath, payload, id);
@@ -256,7 +240,7 @@ export class Interpolation {
         return this.#handleLocalInt(exprPath, payload, id);
       default:
         throw new WrapperYAMLException(
-          `Invalid base in interpolation: ${int} defined bases are: this, imp, param and local.`
+          `Invalid base in interpolation: ${int} defined bases are: this, import, param and local.`
         );
     }
   }
@@ -266,9 +250,9 @@ export class Interpolation {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
    * Method that takes interpolation and devide it into its parts. each interpolation has this structure: $<expression> <payload...> and expression is further devided
-   * into: <expression base>.<expression path>. for example interpolation $imp.module.node param1=value1 param2=value2, the expression is imp.module.node which is
-   * further devided into imp (expression base) and module.node (expression path). and payload is param1=value1 param2=value2. and here's explanation of each part role:
-   *    - expression base: defines type of interpolation and how it's handled by parser and so is defined by library. for example imp base used earlier tells the parser
+   * into: <expression base>.<expression path>. for example interpolation $import.module.node param1=value1 param2=value2, the expression is import.module.node which is
+   * further devided into import (expression base) and module.node (expression path). and payload is param1=value1 param2=value2. and here's explanation of each part role:
+   *    - expression base: defines type of interpolation and how it's handled by parser and so is defined by library. for example import base used earlier tells the parser
    *    that it should import yaml file. or this base that tells parser to check current YAML file.
    *    - expression path: main metadata of the interpolation, returning to out earlier example module.node you tell the parser to import the module with name "module"
    *    and return value of a node named "node".
@@ -363,6 +347,8 @@ export class Interpolation {
     // load has structure of <local>=<value> ... so split each item using "=" to get key and value
     const localsVal = this.#handleKeyValue(payload);
 
+    console.debug("locals: ", localsVal);
+
     // update local values
     cache.localsVal.push(localsVal);
 
@@ -376,7 +362,7 @@ export class Interpolation {
   }
 
   /**
-   * Method to handle 'imp' interpolation. works sync.
+   * Method to handle 'import' interpolation. works sync.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
@@ -390,10 +376,10 @@ export class Interpolation {
     // get needed cache data
     const { importsMap, path, opts } = cache;
 
-    // if no path supplied (which occurs only it the root load() by user) throw error that asks user to add filename if he wants to use imports
+    // if no path supplied (which occurs only it the root load() by user) throw error that asks user to add filepath if he wants to use imports
     if (!path)
       throw new WrapperYAMLException(
-        `You need to define filename in options if you want to use imports.`
+        `You need to define filepath in options if you want to use imports.`
       );
 
     // get alias and node path from expr path
@@ -428,7 +414,7 @@ export class Interpolation {
   }
 
   /**
-   * Method to handle 'imp' interpolation. works async.
+   * Method to handle 'import' interpolation. works async.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
@@ -446,10 +432,10 @@ export class Interpolation {
     // get needed cache data
     const { importsMap, path, opts } = cache;
 
-    // if no path supplied (which occurs only it the root load() by user) throw error that asks user to add filename if he wants to use imports
+    // if no path supplied (which occurs only it the root load() by user) throw error that asks user to add filepath if he wants to use imports
     if (!path)
       throw new WrapperYAMLException(
-        `You need to define filename in options if you want to use imports.`
+        `You need to define filepath in options if you want to use imports.`
       );
 
     // get alias and node path from expr path
@@ -526,6 +512,8 @@ export class Interpolation {
 
     // get needed cache data
     const { localsMap, localsVal } = cache;
+
+    console.debug("LocalMap: ", localsMap, " localVal: ", localsVal);
 
     // get alias and node path from expr path
     const alias = exprPath[0];
@@ -686,7 +674,8 @@ export class Interpolation {
           throw new WrapperYAMLException(
             `Payload after interpolation should have this structure: ( key=value ... )`
           );
-        return keyVal;
+        console.debug(keyVal[1]);
+        return [keyVal[0], keyVal[1]];
       })
     );
   }

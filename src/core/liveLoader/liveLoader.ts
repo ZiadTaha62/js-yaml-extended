@@ -2,7 +2,7 @@ import {
   LiveLoaderOptions,
   WrapperYAMLException,
   YAMLException,
-} from "../../../types.js";
+} from "../../types.js";
 import { FileSystem } from "./fileSystem.js";
 import { Debouncer } from "./debouncer.js";
 import {
@@ -12,15 +12,15 @@ import {
   getLoadCache,
   deleteLoadIdFromCache,
 } from "../cache.js";
+import { internalLoad, internalLoadAsync } from "../load/load.js";
 import {
   readFile,
   readFileAsync,
   resolvePath,
   generateId,
-} from "../../helpers.js";
+} from "../helpers.js";
 import type { WatchEventType } from "fs";
-import { internalLoad, internalLoadAsync } from "../load.js";
-import { circularDepClass } from "../treeResolving/interpolation/import.js";
+import { circularDepClass } from "../circularDep.js";
 
 /**
  * Class that handles multiple YAML file entery points at the same time, while also watching these files and re-load them when they are changed.
@@ -61,7 +61,7 @@ export class LiveLoader {
    * @param paramsVal - Optional params value to be passed to this loaded module.
    * @returns Resolved value of YAML file load.
    */
-  addModule(path: string, paramsVal?: Record<string, string>): unknown {
+  addModule(path: string, paramsVal?: Record<string, unknown>): unknown {
     // get resolved path
     const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
     // read str
@@ -71,7 +71,7 @@ export class LiveLoader {
       // load str
       const load = internalLoad(
         str,
-        { ...this.#liveLoaderOpts, paramsVal, filename: resPath },
+        { ...this.#liveLoaderOpts, paramsVal, filepath: resPath },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader
@@ -103,7 +103,7 @@ export class LiveLoader {
    */
   async addModuleAsync(
     path: string,
-    paramsVal?: Record<string, string>
+    paramsVal?: Record<string, unknown>
   ): Promise<unknown> {
     // get resolved path
     const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
@@ -114,7 +114,7 @@ export class LiveLoader {
       // load str
       const load = await internalLoadAsync(
         str,
-        { ...this.#liveLoaderOpts, paramsVal, filename: resPath },
+        { ...this.#liveLoaderOpts, paramsVal, filepath: resPath },
         this.#liveLoaderId
       );
       // check cache using loadId to get paths utilized by the live loader

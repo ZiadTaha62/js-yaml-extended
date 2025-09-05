@@ -12,7 +12,8 @@
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [API reference](#api-reference)
-- [Directives (syntax & semantics)](#directives-syntax--semantics)
+- [Extended YAML features overview](#extended-yaml-features-overview)
+- [Directives](#directives)
 - [Expressions](#expressions)
 - [Tags with payloads](#tags-with-payloads)
 - [Evaluation order & semantics](#evaluation-order--semantics)
@@ -107,7 +108,7 @@ Also we can notice the new async functions which are introduced to manage import
 
 Function to load YAML string into js value. works sync so all file system reads are sync, also all tag's construct functions executions will be treated as sync functions and not awaited. If you are using imports or async tag construct functions use loadAsync instead.
 
-- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+- `str` — YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filepath` value.
 
 - `opts` — see [LoadOptions](#loadoptions).
 
@@ -117,7 +118,7 @@ Function to load YAML string into js value. works sync so all file system reads 
 
 Function to load YAML string into js value. works async so all file system reads are async, also all tag's construct functions executions are awaited.
 
-- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+- `str` — YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filepath` value.
 
 - `opts` — see [LoadOptions](#loadoptions).
 
@@ -137,7 +138,7 @@ Function to dump js value into YAML string.
 
 Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load() then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works sync.
 
-- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+- `str` — YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filepath` value.
 
 - `opts` — see [ResolveOptions](#resolveoptions).
 
@@ -147,7 +148,7 @@ Function to resolve tags and wrapper expressions (imports, params, locals and pr
 
 Function to resolve tags and wrapper expressions (imports, params, locals and privates) to generate one resolved YAML string. short hand for calling load() then dump(). useful to convert YAML modules into one YAML string that will be passed for configiration. works async.
 
-- `str` — YAML string or URL / filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filename` value.
+- `str` — YAML string or filesystem path for the YAML file. The loader uses a regex to detect path-like strings; when a path is used it will be resolved using `opts.basePath` and it will overwite `opts.filepath` value.
 
 - `opts` — see [ResolveOptions](#resolveoptions).
 
@@ -242,21 +243,21 @@ Class that handles loading multiple YAML files at the same time while watching l
   Method to set options of the class.
   `opts`: Options object passed to control live loader behavior.
 
-- `addModule(path: string, paramsVal?: Record<string, string>) => unknown`
+- `addModule(path: string, paramsVal?: Record<string, unknown>) => unknown`
   Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works sync so all file watch, reads are sync and tags executions are handled as sync functions and will not be awaited.
-  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
   `paramsVal`: Object of module params aliases and there values to be used in this load. so it's almost always better to use addModuleAsync instead.
   `returns`: Value of loaded YAML file.
 
-- `addModuleAsync(path: string, paramsVal?: Record<string, string>) => unknown`
+- `addModuleAsync(path: string, paramsVal?: Record<string, unknown>) => unknown`
   Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works async so all file watch, reads are async and tags executions will be awaited.
-  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
   `paramsVal`: Object of module params aliases and there values to be used in this load.
   `returns`: Value of loaded YAML file.
 
 - `getModule(path: string) => unknown`
   Method to get cached value of loaded module or file. note that value retuned is module's resolve when paramsVal is undefined (default params value are used).
-  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
   `returns`: Cached value of YAML file with default modules params or undefined if file is not loaded.
 
 - `getAllModules() => Record<string, unknown>`
@@ -265,7 +266,7 @@ Class that handles loading multiple YAML files at the same time while watching l
 
 - `deleteModule(path: string) => void`
   Method to delete module or file from live loader.
-  `path`: URL / filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
+  `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
 
 - `deleteAllModules() => void`
   Method to clear cache of live loader by deleting all modules or files from live loader.
@@ -314,13 +315,16 @@ Error object when yaml-extend resolve error is thrown. One of the down sides of 
 
 #### LoadOptions
 
-Options object passed to control load behavior. basePath and paramsVal are added and filename affects more load behaviors.
+Options object passed to control load behavior. basePath, filpath and paramsVal are added.
 
 - `basePath?: string | undefined` — Default: `process.cwd()`
-  URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
+  Filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
+
+- `filepath?: string | undefined` — Default: `undefined`
+  The resolved path of the YAML source. Useful for error messages, caching, and resolving relative imports. If you call `load("./file.yaml")` the loader should set this to the resolved absolute path automatically. `Note that imports and caching will not work if filepath is not supplied here or in function's str field`.
 
 - `filename?: string | undefined` — Default: `undefined`
-  The resolved path of the YAML source. Useful for error messages, caching, and resolving relative imports. If you call `load("./file.yaml")` the loader should set this to the resolved absolute path automatically. `Note that imports and caching will not work if filename is not supplied here or in function's str field`.
+  String to be used as a file path in error/warning messages.
 
 - `onWarning?: ((this: null, err: YAMLException | WrapperYAMLException) => void) | undefined` — Default: `undefined` — see [`YAMLException`](#yamlexception) / [`WrapperYAMLException`](#wrapperyamlexception)
   Function to call on warning messages.
@@ -337,7 +341,7 @@ Options object passed to control load behavior. basePath and paramsVal are added
   `eventType`: Type of the parse event. either close or open.
   `state`: State of the current parse.
 
-- `paramsVal?: Record<string, string> | undefined` — Default: `undefined`
+- `paramsVal?: Record<string, unknown> | undefined` — Default: `undefined`
   Mapping of module param aliases to string values that will be used to resolve %PARAM declarations in the module. Loader-supplied paramsVal should override any defaults declared with %PARAM.
 
 #### DumpOptions
@@ -391,7 +395,7 @@ Options object passed to control dump behavior. Identical to js-yaml.
 Options object passed to control resolve behavior. Extends `LoadOptions` and `DumpOptions` with additional configirations defined below.
 
 - `outputPath?: string` — Default: `undefined`
-  URL / filesystem path to write generated resolved YAML text into.
+  Filesystem path to write generated resolved YAML text into.
 
 #### LiveLoaderOptions
 
@@ -410,7 +414,7 @@ Options object passed to control liveLoader behavior.
   How live loader will react when load error is thrown. You should note that error throwing will be very likely to occur when you update files. if setted to true cache of this module will be reseted to null otherwise nothing will happen to old cache when error is thrown.
 
 - `basePath?: string` — Default: `process.cwd()`
-  URL / filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
+  Filesystem path used as the sandbox root for imports. Prevents access to files outside this directory and is used as the base when resolving relative imports or special `@base/...` import syntax. Example: if basePath is `/proj` and an import says `./configs/a.yaml`, the loader resolves against `/proj`.
 
 - `onWarning?: (this: null, err: YAMLException | WrapperYAMLException) => void` — Default: `undefined` — see [`YAMLException`](#yamlexception) / [`WrapperYAMLException`](#wrapperyamlexception)
   Function to call on warning messages.
@@ -489,7 +493,7 @@ State of the YAML file parse.
   The raw YAML text being parsed.
 
 - `filename: string | null`
-  Resolved path for the YAML source.
+  Logical name for YAML string.
 
 - `schema: Schema`
   The `Schema` instance currently in use.
@@ -544,7 +548,7 @@ Mark for YAMLException that defines error's details.
   Zero-based line number where the problem was detected.
 
 - `name: string`
-  The logical name of the source (filename).
+  The logical name for YAML string (filename).
 
 - `position: number`
   Absolute character index in `buffer` for the error location.
@@ -574,11 +578,435 @@ Types of parse event.
 Types of file system event.
 `Value`: "change" | "rename"
 
-## Directives (syntax & semantics)
+## Extended YAML features overview
 
-`Yaml-extend`
+I like YAML: it's simple and very readable compared with other serialization formats. That’s why I used it to write the schema for a backend API I was building.
+
+But as the schema grew, YAML’s simplicity revealed some limitations: `no native imports, no parameterization, and limited reuse without anchors/aliases`. People sometimes bend YAML tags to compensate, but tags are meant for type transformation; using them for imports introduces complexity and inconsistent behavior across tools.
+
+When designing yaml-extend my primary goal was: `keep the document node tree clean and close to normal YAML`, while adding a small set of features that make large schemas maintainable and developer-friendly. To do that I introduced:
+
+`Directives` — top-of-file declarations (separated from the node tree)
+
+`Expressions` — compact inline references inside the node tree
+
+### Key Ideas
+
+`Directives` live at the top of the file. They declare imports, module parameters, or locals.
+
+`Node tree (the document) stays clean`: you use short inline expressions to reference directive data.
+
+`Expressions` are compact scalars like $import.alias.path.to.node that resolve to the value.
+
+### Example: the problem (tag-based import)
+
+To give you an example of usage let's imagine we have endpoints file where we defines all endpoints for our APIs.
+
+**`endpoints.yaml`**
+
+```yaml
+user:
+  singIn: "/api/user/singIn"
+  singUp: "api/user/singUp"
+```
+
+Here’s a typical approach using a custom tag for a single import. This is verbose when you need many imports:
+
+#### Tag approach
+
+**`userApis.yaml`**
+
+```yaml
+singUp:
+  endpoint: !import
+    path: `./path/endpoints.yaml`
+    node: user.signUp
+  auth: "JWT"
+  headers: headers
+  body: body
+```
+
+To import a single value you must create a mapping with a tag — and if you import a lot, the file becomes noisy.
+
+#### Yaml-extend approach — directives + expressions
+
+Define all imports at the top, then reference them compactly in the node tree.
+
+**`userApis.yaml`**
+
+```yaml
+%IMPORT endpoints ./path/endpoints.yaml
+---
+signUp:
+  endpoint: $import.endpoints.user.signUp
+  auth: "JWT"
+  headers: headers
+  body: body
+```
+
+- The %IMPORT directive declares: alias endpoints → ./path/endpoints.yaml. it can also declare module params but to keep things simple for now we just defined alias and path.
+- --- separates directives from the document.
+- Inside the document, $import.endpoints.user.signUp is a compact expression that resolves to the imported value /api/user/signUp.
+
+This style keeps the YAML node tree minimal and easy to scan — you can see at a glance which values are imported (they start with $import) and where they came from (alias endpoints).
+
+## Directives
+
+`yaml-extend` currently supports the following directive declarations: `FILENAME`, `PARAM`, `LOCAL`, `IMPORT` and `PRIVATE`. These are defined at the top of the YAML file, before the `---` document separator (the same YAML directive block used for version and tag aliases). Directives can be extended in the future only if needed.
+
+### Summary of directives
+
+`FILENAME` — Define logical name for the file to be used in YAMLException and WrapperYAMLException.
+
+`PARAM` — Define module-level parameters (scalars only) with defaults that can be overridden when importing or loading the module.
+
+`LOCAL` — Define file-local variables (scalars only) used within the same YAML document; useful for inline templates.
+
+`IMPORT` — Import another YAML file and provide default module parameters for that import.
+
+`PRIVATE` — Marks a node in the current YAML as internal; it will be removed from the final output.
+
+### FILENAME
+
+#### Structure
+
+Geneal structure is: `%FILENAME <filename>`
+
+`filename` — Logical name for the file to be used in YAMLException and WrapperYAMLException. overwrites filename of options.
+
+#### Example
+
+**`api.yaml`**
+
+```yaml
+%FILENAME apis
+```
+
+### PARAM
+
+#### Structure
+
+Geneal structure is: `%PARAM <alias> <default-value>`
+
+- `alias` — A unique name used to reference this parameter (e.g. endpoint). If an alias is reused, the last declaration wins.
+- `default-value` — The default scalar value used when the parameter is not supplied by the importer. If omitted, the default is `null`.
+
+`Note`: PARAM values are intentionally limited to scalars (strings, numbers, booleans, null). Mapping or sequence values are not allowed because they greatly increase complexity and defeat the core simplicity of YAML.
+
+#### Purpose
+
+`PARAM` lets you create reusable modules that accept simple scalar configuration values from outside the file. This reduces repetition for common structures.
+
+#### Example: module template
+
+See the below YAML example:
+
+**`apis.yaml`**
+
+```yaml
+createUser:
+  endpoint: "/api/users/create"
+  method: POST
+  auth: "JWT"
+  headers:
+    Content-Type: "application/json"
+  rateLimit: 100
+
+updateUser:
+  endpoint: "/api/users/update"
+  method: PUT
+  auth: "JWT"
+  headers:
+    Content-Type: "application/json"
+  rateLimit: 100
+
+getUser:
+  endpoint: "/api/users/get"
+  method: GET
+  auth: "JWT"
+  headers:
+    Content-Type: "application/json"
+  rateLimit: 200
+```
+
+Notice how method, auth, headers, and much of the structure repeat. If you had dozens of endpoints you’d repeat this pattern a lot. One solution for this is putting the reusable structure in a separate module file and refer to params inside it.
+
+**`api-template.yaml`**
+
+```yaml
+%PARAM endpoint ./def/endpoint
+%PARAM method GET
+%PARAM auth JWT
+%PARAM rateLimit 100
+---
+module:
+  endpoint: $param.endpoint
+  method: $param.method
+  auth: $param.auth
+  headers:
+    Content-Type: "application/json"
+  rateLimit: $param.rateLimit
+```
+
+**`apis.yaml`**
+
+```yaml
+%IMPORT apiTemplate ./path/api-template.yaml
+---
+createUser:
+  {
+    $import.apiTemplate.module endpoint=/api/users/create method=POST auth=JWT rateLimit=100,
+  }
+
+updateUser:
+  {
+    $import.apiTemplate.module endpoint=/api/users/update method=PUT auth=JWT rateLimit=100,
+  }
+
+getUser:
+  {
+    $import.apiTemplate.module endpoint=/api/users/get method=GET auth=JWT rateLimit=200,
+  }
+```
+
+`Note: `One of the downsides is that only scalar values are allowed. so if we added a mapping value in our Apis, for example bodySchema. the structure will look like this as we can't define it's value through module params:
+
+**`apis.yaml`**
+
+```yaml
+%IMPORT apiTemplate ./path/api-template.yaml
+---
+createUser:
+  <<:
+    {
+      $import.apiTemplate.module endpoint=/api/users/create method=POST auth=JWT rateLimit=100,
+    }
+  bodySchema: {} #mock for mapping
+
+updateUser:
+  <<:
+    {
+      $import.apiTemplate.module endpoint=/api/users/update method=PUT auth=JWT rateLimit=100,
+    }
+  bodySchema: {} #mock for mapping
+
+getUser:
+  <<:
+    {
+      $import.apiTemplate.module endpoint=/api/users/get method=GET auth=JWT rateLimit=200,
+    }
+  bodySchema: {} #mock for mapping
+```
+
+#### Tag example using PARAM
+
+PARAM is great for environment switches, short configuration values, or tokens used by custom tags. In this example tag `!switch` with kind mapping. it checks value of param (Tag's payload) and return matching key of the mapping.
+
+**`endpoints.yaml`**
+
+```yaml
+%PARAM env dev
+---
+endpoint: !switch($param.env)
+  dev: ./path/dev
+  prod: ./path/pro
+```
+
+And you can import it and choose which env to pass:
+
+**`api.yaml`**
+
+```yaml
+%IMPORT endpoint ./path/endpoints.yaml
+---
+devApi:
+  endpoint: $import.endpoint env=dev
+
+prodApi:
+  endpoint: $import.endpoint env=prod
+```
+
+### LOCAL
+
+#### Structure
+
+Geneal structure is: `%LOCAL <alias> <default-value>`
+
+- `alias` — A unique name used to reference the local value within the same YAML document. If an alias is reused, the last declaration wins.
+- `default-value` — Default scalar used when a $this reference does not override it. If omitted, the default is null.
+
+`Note`: LOCAL values are intentionally limited to scalars (strings, numbers, booleans, null). Mapping or sequence values are not allowed because they greatly increase complexity and defeat the core simplicity of YAML.
+
+#### Purpose
+
+LOCAL lets you create reusable, file-scoped values and templates inside the same YAML file. Use it when you want everything in one file rather than splitting templates into separate modules.
+
+#### Example: inline template with LOCAL
+
+Same as earlier, but now all the data lives in the same YAML file.
+
+**`apis.yaml`**
+
+```yaml
+%LOCAL endpoint ./def/endpoint
+%LOCAL method GET
+%LOCAL auth JWT
+%LOCAL rateLimit 100
+%PRIVATE template
+---
+template:
+  endpoint: $local.endpoint
+  method: $local.method
+  auth: $local.auth
+  headers:
+    Content-Type: "application/json"
+  rateLimit: $local.rateLimit
+
+createUser:
+  {
+    $this.template.module endpoint=/api/users/create method=POST auth=JWT rateLimit=100,
+  }
+
+updateUser:
+  {
+    $this.template.module endpoint=/api/users/update method=PUT auth=JWT rateLimit=100,
+  }
+
+getUser:
+  {
+    $this.template.module endpoint=/api/users/get method=GET auth=JWT rateLimit=200,
+  }
+```
+
+### When to prefer LOCAL vs PARAM
+
+- Use `PARAM` when creating separate module files meant to be imported and reused across documents.
+- Use `LOCAL` when the template or helper should remain inside the same YAML file.
+
+### IMPORT
+
+#### Structure
+
+Geneal structure is: `%IMPORT <alias> <path> [key=value ...]`
+
+- `alias` — A unique name used to reference the imported file (e.g. apiTemplate). If an alias is reused, the last declaration wins.
+- `path` — Filesystem path (or module path) to the YAML file being imported.
+- `key=value` — Optional default module parameter assignments used for this import. These can be overridden inline when referencing the imported module.
+
+#### Purpose
+
+`IMPORT` loads another YAML file into the current document under an alias. You can define default PARAMs for that import in the directive itself, and you can override or provide values when you reference nodes from the import.
+
+#### Accessing imported data
+
+- Use `$import.<alias>.<node>` to reference nodes inside the imported file.
+- When the imported file defines PARAMs, you can supply param values inline while referencing, for example:
+
+```yaml
+node: $import.apiTemplate.module endpoint=/api/users/create method=POST
+```
+
+- Any defaults provided in the %IMPORT directive are used unless overridden inline.
+
+#### Example
+
+Same as earlier.
+
+**`api-template.yaml`**
+
+```yaml
+%PARAM endpoint ./def/endpoint
+%PARAM method GET
+%PARAM auth JWT
+%PARAM rateLimit 100
+---
+module:
+  endpoint: $param.endpoint
+  method: $param.method
+  auth: $param.auth
+  headers:
+    Content-Type: "application/json"
+  rateLimit: $param.rateLimit
+```
+
+Import with defaults:
+
+**`apis.yaml`**
+
+```yaml
+%IMPORT apiTemplate ./path/api-template.yaml method=POST rateLimit=50
+---
+# uses the import defaults unless overridden inline
+createUser: { $import.apiTemplate.module }
+```
+
+Inline override:
+
+**`apis.yaml`**
+
+```yaml
+%IMPORT apiTemplate ./path/api-template.yaml method=POST rateLimit=50
+---
+# uses the import defaults unless overridden inline
+createUser:
+  {
+    $import.apiTemplate.module endpoint=/api/users/get method=GET rateLimit=200,
+  }
+```
+
+### PRIVATE
+
+#### Structure
+
+Geneal structure is: `%PRIVE [node ...]`
+
+- `node` — A node name in the current YAML document that should be treated as internal.
+
+#### Purpose
+
+PRIVATE marks nodes (typically templates or helper objects) that are used during document processing but should be removed from the final output. This is useful for keeping templates, examples, or internal data inside your YAML code while preventing them from appearing in the exported/consumed YAML.
+
+#### Rules & behavior
+
+- The PRIVATE directive signals the processor to strip the named node from the final output after all references are resolved.
+
+- PRIVATE nodes can reference and use $local and $param values.
+
+- If you need multiple private nodes, you can either declare each with its own %PRIVATE directive or pass them all to one directive separated by spaces.
+
+#### Example
+
+**`example.yaml`**
+
+```yaml
+%PRIVATE auth
+---
+auth:
+  - JWT
+  - DeviceBinding
+  - SessionToken
+
+api1:
+  auth: $this.auth.JWT
+
+api2:
+  auth: $this.auth.DeviceBinding
+
+api3:
+  auth: $this.auth.SessionToken
+```
+
+In this example we declared all auth options in our app in single auth sequence then refrenced them in our APIs (single source of truth). when YAML file is loaded the references are resolved but auth sequence (which is now not needed) is deleted from final output.
 
 ## Expressions
+
+### this
+
+### import
+
+### param
+
+### local
 
 ## Tags with payloads
 

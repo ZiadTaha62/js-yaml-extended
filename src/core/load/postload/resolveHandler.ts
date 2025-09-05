@@ -1,6 +1,6 @@
 import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
-import { Interpolation } from "./interpolation/interpolationHandler.js";
-import { TagResolveItem } from "./tagResolveItem.js";
+import { Interpolation } from "./interpolationHandler.js";
+import { TagResolveItem } from "../lazyLoadClasses/tagResolveItem.js";
 import type {
   DirectivesObj,
   HandledLoadOpts,
@@ -8,7 +8,7 @@ import type {
   InternalLoad,
   InternalLoadAsync,
 } from "../../../types.js";
-import { BlueprintItem } from "./blueprintItem.js";
+import { BlueprintItem } from "../lazyLoadClasses/blueprintItem.js";
 import { generateId, getClosingChar } from "../../helpers.js";
 
 /**
@@ -25,8 +25,8 @@ export class ResolveHandler {
   #intHandler: Interpolation;
 
   /**
-   * @param load - Reference to internalLoad function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
-   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $imp interpolation. passed like this to avoid circular dependency.
+   * @param load - Reference to internalLoad function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
+   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
    */
   constructor(load: InternalLoad, loadAsync: InternalLoadAsync) {
     // create interpolation class to handle interpolations while resolving.
@@ -95,7 +95,7 @@ export class ResolveHandler {
     path: string | undefined,
     blueprint: unknown,
     directivesObj: DirectivesObj,
-    paramsVal: Record<string, string>,
+    paramsVal: Record<string, unknown>,
     loadId: string,
     opts: HandledLoadOpts
   ): unknown {
@@ -137,7 +137,7 @@ export class ResolveHandler {
     path: string | undefined,
     blueprint: unknown,
     directivesObj: DirectivesObj,
-    paramsVal: Record<string, string>,
+    paramsVal: Record<string, unknown>,
     loadId: string,
     opts: HandledLoadOpts
   ): Promise<unknown> {
@@ -246,7 +246,17 @@ export class ResolveHandler {
 
     // check if it's syntaxt {$val}
     const intMapping = this.#intHandler.handleIntMapping(enteries, id);
-    if (intMapping) return intMapping;
+    if (intMapping) {
+      if (
+        typeof intMapping !== "object" ||
+        intMapping == null ||
+        Array.isArray(intMapping)
+      )
+        throw new WrapperYAMLException(
+          `Interpolation: ${enteries[0][0]} is wrapped inside {} but it's value is not a mapping.`
+        );
+      return intMapping;
+    }
 
     // loop enteries
     for (const [key, val] of enteries)
@@ -280,7 +290,18 @@ export class ResolveHandler {
       enteries,
       id
     );
-    if (intMapping) return intMapping;
+    console.debug(intMapping, typeof intMapping);
+    if (intMapping) {
+      if (
+        typeof intMapping !== "object" ||
+        intMapping == null ||
+        Array.isArray(intMapping)
+      )
+        throw new WrapperYAMLException(
+          `Interpolation: ${enteries[0][0]} is wrapped inside {} but it's value is not a mapping.`
+        );
+      return intMapping;
+    }
 
     // loop enteries
     for (const [key, val] of enteries)
@@ -312,7 +333,8 @@ export class ResolveHandler {
 
     // check if it's syntaxt [$val]
     const intSequence = this.#intHandler.handleIntSequence(newArr, id);
-    if (intSequence) return intSequence;
+    if (intSequence)
+      return Array.isArray(intSequence) ? intSequence : [intSequence];
 
     // handle all the values in the array
     for (let i = 0; i < newArr.length; i++)
@@ -344,7 +366,8 @@ export class ResolveHandler {
       newArr,
       id
     );
-    if (intSequence) return intSequence;
+    if (intSequence)
+      return Array.isArray(intSequence) ? intSequence : [intSequence];
 
     // handle all the values in the array
     for (let i = 0; i < newArr.length; i++)

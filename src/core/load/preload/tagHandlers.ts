@@ -1,7 +1,7 @@
 import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
 import { Schema } from "../../../wrapperClasses/schema.js";
 import { Type } from "../../../wrapperClasses/type.js";
-import { TagResolveItem } from "../treeResolving/tagResolveItem.js";
+import { TagResolveItem } from "../lazyLoadClasses/tagResolveItem.js";
 import { numChar } from "../../helpers.js";
 
 import {
