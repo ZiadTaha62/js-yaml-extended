@@ -15,6 +15,7 @@
 - [Extended YAML features overview](#extended-yaml-features-overview)
 - [Directives](#directives)
 - [Expressions](#expressions)
+- [Escaping](#escaping)
 - [Tags with payloads](#tags-with-payloads)
 - [Evaluation order & semantics](#evaluation-order--semantics)
 - [Security & sandboxing](#security--sandboxing)
@@ -686,7 +687,7 @@ This style keeps the YAML node tree minimal and easy to scan — you can see at 
 
 Geneal structure is: `%FILENAME <filename>`
 
-`filename` — Logical name for the file to be used in YAMLException and WrapperYAMLException. overwrites filename of options.
+`filename` — Logical name for the file to be used in YAMLException and WrapperYAMLException. overwrites filename of options. wrap the filename inside [escape-character]
 
 #### Example
 
@@ -901,7 +902,7 @@ getUser:
 
 #### Structure
 
-Geneal structure is: `%IMPORT <alias> <path> [key=value ...]`
+Geneal structure is: `%IMPORT <alias> <path> [<key>=<value> ...]`
 
 - `alias` — A unique name used to reference the imported file (e.g. apiTemplate). If an alias is reused, the last declaration wins.
 - `path` — Filesystem path (or module path) to the YAML file being imported.
@@ -913,7 +914,7 @@ Geneal structure is: `%IMPORT <alias> <path> [key=value ...]`
 
 #### Accessing imported data
 
-- Use `$import.<alias>.<node>` to reference nodes inside the imported file.
+- Use `$import.<alias>.[<node> ...]` to reference nodes inside the imported file.
 - When the imported file defines PARAMs, you can supply param values inline while referencing, for example:
 
 ```yaml
@@ -972,9 +973,9 @@ createUser:
 
 #### Structure
 
-Geneal structure is: `%PRIVATE [node ...]`
+Geneal structure is: `%PRIVATE [[<node> ...] ...]`
 
-- `node` — A node name in the current YAML document that should be treated as internal.
+- `node` — A node name in the current YAML document that should be treated as internal. node's path inside YAML text is separated by dots (`.`) .
 
 #### Purpose
 
@@ -993,7 +994,8 @@ PRIVATE marks nodes (typically templates or helper objects) that are used during
 **`example.yaml`**
 
 ```yaml
-%PRIVATE auth
+%PRIVATE auth.JWT # single node path
+%PRIVATE auth.DeviceBinding api1 # multiple node paths (auth.deviceBinding and api1)
 ---
 auth:
   - JWT
@@ -1014,6 +1016,8 @@ In this example we declared all auth options in our app in single auth sequence 
 
 ## Expressions
 
+`yaml-extend` currently supports the following expression declarations: `this`, `param`, `local`, and `import`. These are defined at the top of the YAML file, before the `---` document separator (the same YAML directive block used for version and tag aliases). Directives can be extended in the future only if needed.
+
 ### this
 
 ### import
@@ -1021,6 +1025,45 @@ In this example we declared all auth options in our app in single auth sequence 
 ### param
 
 ### local
+
+## Escaping
+
+In directives and expressions, sometimes tokens `<filename>, <alias>, <default-value>, <key>, <value> and <node>` may contain delimiters as white speces, `=` in `<key>=<value>` or `.` in `[<node> ...]` . to escape these characters you need to wrap the token inside [escape characters](#escape-characters).
+
+### Escape characters
+
+- `Double quotes ("")` — Double quotes only, `Single quotes ('') are not supported`.
+
+- `Square brackets ([])` — Java script like.
+
+### Examples
+
+-`<filename>`
+
+```yaml
+%FILENAME name with space # non escaped, only name will be used
+%FILENAME "name with space" # escaped using Double quotes, "name with space" is used as filename
+%FILENAME [name with space] # escaped using Square brackets, "name with space" is used as filename
+```
+
+- `<key>=<value>`
+
+```yaml
+%IMPORT alias path.yaml key with space=value wi=th space  # non escaped, this evalueates to -> key=undefined with=undefined space=value wi=th space=undefined
+%IMPORT alias path.yaml "key with space"="value wi=th space" # escaped using Double quotes, key: "key with space" and value: "value wi=th space" is used.
+%IMPORT alias path.yaml [key with space]=[value wi=th space] # escaped using Square brackets, key: "key with space" and value: "value wi=th space" is used.
+
+### Note that this is not valid ###
+%IMPORT alias path.yaml "key with space=value wi=th space" # You should wrap key and value separetly.
+```
+
+- `[<node> ...]`
+
+```yaml
+$this.node with space.subNode key=value # non escaped, the node path will evaluate to $this.node and key value pairs will evaluate to with=undefined space.subNode=undefined key=value
+$this."node with space".subNode key=value # escaped using Double quotes, the node path will evaluate to $this.["node with space"].subNode and key value pairs will evaluate to key=value
+$this."node with space".subNode key=value # escaped using Square brackets, the node path will evaluate to $this.["node with space"].subNode and key value pairs will evaluate to key=value
+```
 
 ## Tags with payloads
 
