@@ -3,7 +3,7 @@ export class WrapperYAMLException extends Error {
   filepath: string;
   reason: string;
 
-  constructor(reason: string, filepath?: string, name?: string) {
+  constructor(reason?: string, filepath?: string, name?: string) {
     // define additional data
     let additionalData = "";
     if (filepath && name)
@@ -17,9 +17,14 @@ export class WrapperYAMLException extends Error {
     // set message by passing it to super
     super(message);
     // set reason, name and filepath
-    this.reason = reason;
+    this.reason = reason ?? "";
     this.name = name ?? "";
     this.filepath = filepath ?? "";
+  }
+
+  toString(compact?: boolean) {
+    if (compact) return JSON.stringify(this.message);
+    else return JSON.stringify(this.message, null, 2);
   }
 
   setAdditionalData(filepath: string | undefined, name: string | undefined) {

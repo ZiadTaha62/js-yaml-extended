@@ -11,14 +11,14 @@ import {
 } from "./src/wrapperClasses/schemaGroups.js";
 
 //////// LOAD
-import { load, loadAsync } from "./src/functions/load/load.js";
-import { LiveLoader } from "./src/functions/load/liveLoader/liveLoader.js";
+import { load, loadAsync } from "./src/core/load/load.js";
+import { LiveLoader } from "./src/core/liveLoader/liveLoader.js";
 
 //////// DUMP
 import { dump } from "js-yaml";
 
 //////// RESOLVE
-import { resolve, resolveAsync } from "./src/functions/resolve/resolve.js";
+import { resolve, resolveAsync } from "./src/core/resolve/resolve.js";
 
 export {
   WrapperYAMLException,

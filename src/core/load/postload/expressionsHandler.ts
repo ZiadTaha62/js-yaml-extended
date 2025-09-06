@@ -3,9 +3,14 @@ import {
   ResolveCache,
   InternalLoad,
   InternalLoadAsync,
+  ParamExprParts,
+  LocalExprParts,
+  ImportExprParts,
+  ThisExprParts,
 } from "../../../types.js";
 import { BlueprintItem } from "../lazyLoadClasses/blueprintItem.js";
 import { ImportHandler } from "./import.js";
+import { tokenizer } from "../tokenizer.js";
 
 /** Message that will be sent if an error occured during resolving that should not happen. */
 const BUG_MESSAGE = `Error while resolving, contact us about this error as it's most propably a bug.`;
@@ -13,7 +18,7 @@ const BUG_MESSAGE = `Error while resolving, contact us about this error as it's 
 /**
  * Class to handle resolving and handling of interpolations in YAML text.
  */
-export class Interpolation {
+export class Expression {
   /** Reference to resolve cache of parent resolveHandler class. */
   #resolveCache: ResolveCache;
 
@@ -40,8 +45,8 @@ export class Interpolation {
    * @param resolveCache - Reference to resolve cache of parent resolveHandler class.
    * @param resolveUnknown - Reference to resolveUnknown method of parent resolveHandler class. passed like this to avoid circular dependency.
    * @param resolveUnknownAsync - Reference to resolveUnknownAsync method of parent resolveHandler class. passed like this to avoid circular dependency.
-   * @param load - Reference to internalLoad function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
-   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
+   * @param load - Reference to internalLoad function, so it can be used in $import expression. passed like this to avoid circular dependency.
+   * @param loadAsync - Reference to internalLoadAsync function, so it can be used in $import expression. passed like this to avoid circular dependency.
    */
   constructor(
     resolveCache: ResolveCache,
@@ -67,154 +72,154 @@ export class Interpolation {
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Methods to handle interpolation check and resolve by calling resolving methods.
+  // Methods to handle expression check and resolve by calling resolving methods.
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
-   * Method to check if mapping (object) in raw load is actaully mapping interpolation. mapping interpolations are defined with this structure in YAML file: { $<int> }
-   * which is pared by js-yaml to: { $<int>: null }. so it actally check if it's a one key object and the key is valid interpolation syntax with value null.
+   * Method to check if mapping (object) in raw load is actaully mapping expression. mapping interpolations are defined with this structure in YAML file: { $<int> }
+   * which is pared by js-yaml to: { $<int>: null }. so it actally check if it's a one key object and the key is valid expression syntax with value null.
    * @param ent - Enteries of checked object.
-   * @returns Boolean that indicate if it's an interpolation or not.
+   * @returns Boolean that indicate if it's an expression or not.
    */
-  isIntMapping(ent: [string, unknown][]): boolean {
+  isExprMapping(ent: [string, unknown][]): boolean {
     return ent.length === 1 && this.#isIntNode(ent[0][0]) && ent[0][1] == null;
   }
 
   /**
-   * Method to check if sequence (array) in raw load is actaully sequence interpolation. sequence interpolations are defined with this structure in YAML file: [ $<int> ]
-   * which is pared by js-yaml to: [ $<int> ]. so it actally check if it's a one item array and the this item is valid interpolation syntax.
+   * Method to check if sequence (array) in raw load is actaully sequence expression. sequence interpolations are defined with this structure in YAML file: [ $<int> ]
+   * which is pared by js-yaml to: [ $<int> ]. so it actally check if it's a one item array and the this item is valid expression syntax.
    * @param arr - Array that will be checked.
-   * @returns Boolean that indicate if it's an interpolation or not.
+   * @returns Boolean that indicate if it's an expression or not.
    */
-  isIntSequence(arr: unknown[]): boolean {
+  isExprSequence(arr: unknown[]): boolean {
     return arr.length === 1 && this.#isIntNode(arr[0]);
   }
 
   /**
-   * Method to check if scalar (string) in raw load is actaully scalar interpolation. scalar interpolations are defined with this structure in YAML file: $<int>
-   * which is pared by js-yaml to: $<int>. so it actally check if the string is valid interpolation syntax.
+   * Method to check if scalar (string) in raw load is actaully scalar expression. scalar interpolations are defined with this structure in YAML file: $<int>
+   * which is pared by js-yaml to: $<int>. so it actally check if the string is valid expression syntax.
    * @param str - string that will be checked.
-   * @returns Boolean that indicate if it's an interpolation or not.
+   * @returns Boolean that indicate if it's an expression or not.
    */
-  isIntScalar(str: string): boolean {
+  isExprScalar(str: string): boolean {
     return this.#isIntNode(str);
   }
 
   /**
-   * Method to handle mapping interpolations by resolving value if it was indeed mapping interpolation, if it wasn't udnefined is returned instead. works sync.
+   * Method to handle mapping interpolations by resolving value if it was indeed mapping expression, if it wasn't udnefined is returned instead. works sync.
    * @param ent - Enteries of handled object.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of mapping interpolation.
+   * @returns Resolved value of mapping expression.
    */
-  handleIntMapping(ent: [string, unknown][], id: string): unknown | undefined {
-    if (this.isIntMapping(ent)) {
+  handleExprMapping(ent: [string, unknown][], id: string): unknown | undefined {
+    if (this.isExprMapping(ent)) {
       const val = this.resolve(ent[0][0], id);
       return val;
     }
   }
 
   /**
-   * Method to handle mapping interpolations by resolving value if it was indeed mapping interpolation, if it wasn't udnefined is returned instead. works async.
+   * Method to handle mapping interpolations by resolving value if it was indeed mapping expression, if it wasn't udnefined is returned instead. works async.
    * @param ent - Enteries of handled object.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of mapping interpolation.
+   * @returns Resolved value of mapping expression.
    */
-  async handleIntMappingAsync(
+  async handleExprMappingAsync(
     ent: [string, unknown][],
     id: string
   ): Promise<unknown | undefined> {
-    if (this.isIntMapping(ent)) {
+    if (this.isExprMapping(ent)) {
       const val = await this.resolveAsync(ent[0][0], id);
       return val;
     }
   }
 
   /**
-   * Method to handle sequence interpolations by resolving value if it was indeed sequence interpolation, if it wasn't udnefined is returned instead. works sync.
+   * Method to handle sequence interpolations by resolving value if it was indeed sequence expression, if it wasn't udnefined is returned instead. works sync.
    * @param arr - Array that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of sequence interpolation.
+   * @returns Resolved value of sequence expression.
    */
-  handleIntSequence(arr: unknown[], id: string): unknown | undefined {
-    if (this.isIntSequence(arr)) {
+  handleExprSequence(arr: unknown[], id: string): unknown | undefined {
+    if (this.isExprSequence(arr)) {
       const val = this.resolve(arr[0] as string, id);
       return val;
     }
   }
 
   /**
-   * Method to handle sequence interpolations by resolving value if it was indeed sequence interpolation, if it wasn't udnefined is returned instead. works async.
+   * Method to handle sequence interpolations by resolving value if it was indeed sequence expression, if it wasn't udnefined is returned instead. works async.
    * @param arr - Array that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of resolving interpolation.
+   * @returns Resolved value of resolving expression.
    */
-  async handleIntSequenceAsync(
+  async handleExprSequenceAsync(
     arr: unknown[],
     id: string
   ): Promise<unknown | undefined> {
-    if (this.isIntSequence(arr)) {
+    if (this.isExprSequence(arr)) {
       const val = await this.resolveAsync(arr[0] as string, id);
       return val;
     }
   }
 
   /**
-   * Method to handle scalar interpolations by resolving value if it was indeed scalar interpolation, if it wasn't udnefined is returned instead. works sync.
+   * Method to handle scalar interpolations by resolving value if it was indeed scalar expression, if it wasn't udnefined is returned instead. works sync.
    * @param str - string that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of scalar interpolation.
+   * @returns Resolved value of scalar expression.
    */
-  handleIntScalar(str: string, id: string): string | undefined {
-    if (this.isIntScalar(str)) {
+  handleExprScalar(str: string, id: string): string | undefined {
+    if (this.isExprScalar(str)) {
       const val = this.resolve(str, id);
       return String(val);
     }
   }
 
   /**
-   * Method to handle scalar interpolations by resolving value if it was indeed scalar interpolation, if it wasn't udnefined is returned instead. works async.
+   * Method to handle scalar interpolations by resolving value if it was indeed scalar expression, if it wasn't udnefined is returned instead. works async.
    * @param str - string that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Resolved value of scalar interpolation.
+   * @returns Resolved value of scalar expression.
    */
-  async handleIntScalarAsync(
+  async handleExprScalarAsync(
     str: string,
     id: string
   ): Promise<string | undefined> {
-    if (this.isIntScalar(str)) {
+    if (this.isExprScalar(str)) {
       const val = await this.resolveAsync(str, id);
       return String(val);
     }
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Methods to handle interpolation resolve.
+  // Methods to handle expression resolve.
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
    * Method to resolve interpolations. works sync.
-   * @param int - Interpolation that will be handled.
+   * @param expr - Expression that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value returned from interpolation resolve.
+   * @returns Value returned from expression resolve.
    */
-  resolve(int: string, id: string): unknown {
-    // split interpolation
-    const { exprBase, exprPath, payload } = this.#splitInt(int);
+  resolve(expr: string, id: string): unknown {
+    const exprData = tokenizer.handleExpression(expr);
+    if (!exprData)
+      throw new WrapperYAMLException(
+        `Invalid type in expression: ${expr} defined types are: 'this' , 'import', 'param' and 'local'`
+      );
 
-    // handle interpolation according to base
-    switch (exprBase) {
+    // destructure expression data
+    const { type, parts } = exprData;
+
+    // handle expression according to base
+    switch (type) {
       case "this":
-        return this.#handleThisInt(exprPath, payload, id);
+        return this.#handleThisExpr(parts as ThisExprParts, id);
       case "import":
-        return this.#handleImpInt(exprPath, payload, id);
+        return this.#handleImpExpr(parts as ImportExprParts, id);
       case "param":
-        return this.#handleParamInt(exprPath, payload, id);
+        return this.#handleParamExpr(parts as ParamExprParts, id);
       case "local":
-        return this.#handleLocalInt(exprPath, payload, id);
-      case "ts":
-        return `${int}`; // will be handled in ts-builder
-      default:
-        throw new WrapperYAMLException(
-          `Invalid base in interpolation: ${int} defined bases are: 'this' , 'import' and 'param'`
-        );
+        return this.#handleLocalExpr(parts as LocalExprParts, id);
     }
   }
 
@@ -222,26 +227,31 @@ export class Interpolation {
    * Method to resolve interpolations. works async.
    * @param int - Interpolation that will be handled.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value returned from interpolation resolve.
+   * @returns Value returned from expression resolve.
    */
-  async resolveAsync(int: string, id: string) {
-    // split interpolation
-    const { exprBase, exprPath, payload } = this.#splitInt(int);
+  async resolveAsync(expr: string, id: string) {
+    // if expression is in interpolation syntax: ${expr} remove the wrapping {}
+    if (expr.startsWith("${")) expr = "$" + expr.slice(2, expr.length - 1);
 
-    // handle interpolation according to base
-    switch (exprBase) {
+    const exprData = tokenizer.handleExpression(expr);
+    if (!exprData)
+      throw new WrapperYAMLException(
+        `Invalid type in expression: ${expr} defined types are: 'this' , 'import', 'param' and 'local'`
+      );
+
+    // destructure expression data
+    const { type, parts } = exprData;
+
+    // handle expression according to base
+    switch (type) {
       case "this":
-        return await this.#handleThisIntAsync(exprPath, payload, id);
+        return await this.#handleThisExprAsync(parts as ThisExprParts, id);
       case "import":
-        return await this.#handleImpIntAsync(exprPath, payload, id);
+        return await this.#handleImpExprAsync(parts as ImportExprParts, id);
       case "param":
-        return this.#handleParamInt(exprPath, payload, id);
+        return this.#handleParamExpr(parts as ParamExprParts, id);
       case "local":
-        return this.#handleLocalInt(exprPath, payload, id);
-      default:
-        throw new WrapperYAMLException(
-          `Invalid base in interpolation: ${int} defined bases are: this, import, param and local.`
-        );
+        return this.#handleLocalExpr(parts as LocalExprParts, id);
     }
   }
 
@@ -249,60 +259,16 @@ export class Interpolation {
   // Helper methods
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /**
-   * Method that takes interpolation and devide it into its parts. each interpolation has this structure: $<expression> <payload...> and expression is further devided
-   * into: <expression base>.<expression path>. for example interpolation $import.module.node param1=value1 param2=value2, the expression is import.module.node which is
-   * further devided into import (expression base) and module.node (expression path). and payload is param1=value1 param2=value2. and here's explanation of each part role:
-   *    - expression base: defines type of interpolation and how it's handled by parser and so is defined by library. for example import base used earlier tells the parser
-   *    that it should import yaml file. or this base that tells parser to check current YAML file.
-   *    - expression path: main metadata of the interpolation, returning to out earlier example module.node you tell the parser to import the module with name "module"
-   *    and return value of a node named "node".
-   *    - payload: additional meta data that affects how parser treat to return value but it's not essential, payload in the previous example was telling parser to resolve
-   *    and module params it faces with name "param1" to value "value1" and so for "param2" and "value2".
-   * @param int - Interpolatio that will be splitted.
-   * @returns Object of the parts ready to be handled.
-   */
-  #splitInt(int: string): {
-    exprBase: string;
-    exprPath: string[];
-    payload: string[];
-  } {
-    // normalize int by removing starting "$" or "${" and trailing "}" if present with trimimg
-    int = int.trim();
-    if (int.startsWith("${")) int = int.slice(2, int.length - 1);
-    if (int.startsWith("$")) int = int.slice(1);
-    int = int.trim();
-
-    // split interpolation into parts
-    const parts = int.split(" ").filter((v) => v);
-
-    // separate parts into expr and payload
-    if (parts.length === 0)
-      throw new WrapperYAMLException(
-        `Emtpy Interpolation expression detected.`
-      );
-    const expr = parts[0];
-    const payload = parts.slice(1);
-
-    // split expr into parts
-    const exprParts = expr.split(".").filter((v) => v);
-
-    // separate expr parts into base and path
-    const exprBase = exprParts[0];
-    if (!exprBase)
-      throw new WrapperYAMLException(`Interpolation should start with a base.`); // should never fire but added for type script
-    const exprPath = exprParts.slice(1);
-
-    return { exprBase, exprPath, payload };
-  }
-
-  /**
-   * Method to handle 'this' interpolation. works sync.
+   * Method to handle 'this' expression. works sync.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  #handleThisInt(exprPath: string[], payload: string[], id: string): unknown {
+  #handleThisExpr(parts: ThisExprParts, id: string): unknown {
+    // destrcture parts
+    const { nodepath, keyValue: localsVal } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -310,15 +276,12 @@ export class Interpolation {
     // get needed cache data
     const { blueprint } = cache;
 
-    // load has structure of <local>=<value> ... so split each item using "=" to get key and value
-    const localsVal = this.#handleKeyValue(payload);
-
     // update local values
     cache.localsVal.push(localsVal);
 
     try {
       // read node and return value
-      return this.#traverseNodes(blueprint, exprPath, id);
+      return this.#traverseNodes(blueprint, nodepath, id);
     } finally {
       // remove added localVals
       cache.localsVal.pop();
@@ -326,17 +289,19 @@ export class Interpolation {
   }
 
   /**
-   * Method to handle 'this' interpolation. works async.
+   * Method to handle 'this' expression. works async.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  async #handleThisIntAsync(
-    exprPath: string[],
-    payload: string[],
+  async #handleThisExprAsync(
+    parts: ThisExprParts,
     id: string
   ): Promise<unknown> {
+    // destrcture parts
+    const { nodepath, keyValue: localsVal } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -344,17 +309,11 @@ export class Interpolation {
     // get needed cache data
     const { blueprint } = cache;
 
-    // load has structure of <local>=<value> ... so split each item using "=" to get key and value
-    const localsVal = this.#handleKeyValue(payload);
-
-    console.debug("locals: ", localsVal);
-
     // update local values
     cache.localsVal.push(localsVal);
-
     try {
       // read node and return value
-      return this.#traverseNodes(blueprint, exprPath, id);
+      return this.#traverseNodesAsync(blueprint, nodepath, id);
     } finally {
       // remove added localVals
       cache.localsVal.pop();
@@ -362,13 +321,16 @@ export class Interpolation {
   }
 
   /**
-   * Method to handle 'import' interpolation. works sync.
+   * Method to handle 'import' expression. works sync.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  #handleImpInt(exprPath: string[], payload: string[], id: string): unknown {
+  #handleImpExpr(parts: ImportExprParts, id: string): unknown {
+    // destrcture parts
+    const { nodepath: aliasWithPath, keyValue: paramsVal } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -383,19 +345,16 @@ export class Interpolation {
       );
 
     // get alias and node path from expr path
-    const alias = exprPath[0];
-    const nodePath = exprPath.slice(1);
+    const alias = aliasWithPath[0];
+    const nodepath = aliasWithPath.slice(1);
 
     // use imports map to get path and defualt params of this import
     const impData = importsMap.get(alias);
     if (!impData)
       throw new WrapperYAMLException(
-        `Alias used in import interpolation: '${exprPath}' is not defined in directives.`
+        `Alias used in import expression: '${aliasWithPath}' is not defined in directives.`
       );
     const { paramsVal: defParamsVal, path: targetPath } = impData;
-
-    // get params value defined after interpolation
-    const paramsVal = this.#handleKeyValue(payload);
 
     // merge default with defined params
     const finalParams = { ...defParamsVal, ...paramsVal };
@@ -409,22 +368,24 @@ export class Interpolation {
       id.split("_")[0] // get loadId from id back
     );
 
-    // traverse load using nodePath and return value
-    return this.#traverseNodes(load, nodePath, id);
+    // traverse load using nodepath and return value
+    return this.#traverseNodes(load, nodepath, id);
   }
 
   /**
-   * Method to handle 'import' interpolation. works async.
+   * Method to handle 'import' expression. works async.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  async #handleImpIntAsync(
-    exprPath: string[],
-    payload: string[],
+  async #handleImpExprAsync(
+    parts: ImportExprParts,
     id: string
   ): Promise<unknown> {
+    // destrcture parts
+    const { nodepath: aliasWithPath, keyValue: paramsVal } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -439,19 +400,16 @@ export class Interpolation {
       );
 
     // get alias and node path from expr path
-    const alias = exprPath[0];
-    const nodePath = exprPath.slice(1);
+    const alias = aliasWithPath[0];
+    const nodepath = aliasWithPath.slice(1);
 
     // use imports map to get path and defualt params of this import
     const impData = importsMap.get(alias);
     if (!impData)
       throw new WrapperYAMLException(
-        `Alias used in import interpolation: '${exprPath}' is not defined in directives.`
+        `Alias used in import expression: '${aliasWithPath}' is not defined in directives.`
       );
     const { paramsVal: defParamsVal, path: targetPath } = impData;
-
-    // get params value defined after interpolation
-    const paramsVal = this.#handleKeyValue(payload);
 
     // merge default with defined params
     const finalParams = { ...defParamsVal, ...paramsVal };
@@ -465,18 +423,21 @@ export class Interpolation {
       id.split("_")[0] // get loadId from id back
     );
 
-    // traverse load using nodePath and return value
-    return await this.#traverseNodesAsync(load, nodePath, id);
+    // traverse load using nodepath and return value
+    return await this.#traverseNodesAsync(load, nodepath, id);
   }
 
   /**
-   * Method to handle 'param' interpolation.
+   * Method to handle 'param' expression.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  #handleParamInt(exprPath: string[], payload: string[], id: string): unknown {
+  #handleParamExpr(parts: ParamExprParts, id: string): unknown {
+    // destrcture parts
+    const { alias } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -484,13 +445,10 @@ export class Interpolation {
     // get needed cache data
     const { paramsMap, paramsVal } = cache;
 
-    // get alias and node path from expr path
-    const alias = exprPath[0];
-
     // check if alias is defined in directives using paramsMap, if yes get def param value
     if (!paramsMap.has(alias))
       throw new WrapperYAMLException(
-        `Alias used in params interpolation: '${exprPath}' is not defined in directives.`
+        `Alias used in params expression: '${alias}' is not defined in directives.`
       );
     const defParam = paramsMap.get(alias);
 
@@ -499,13 +457,16 @@ export class Interpolation {
   }
 
   /**
-   * Method to handle 'local' interpolation.
+   * Method to handle 'local' expression.
    * @param exprPath - Main metadata passed in the expression.
    * @param payload - Additional metadata passed after expression.
    * @param id - Unique id generated for this resolve executiion, used to access cache.
-   * @returns Value from resolving the interpolation.
+   * @returns Value from resolving the expression.
    */
-  #handleLocalInt(exprPath: string[], payload: string[], id: string): unknown {
+  #handleLocalExpr(parts: LocalExprParts, id: string): unknown {
+    // destrcture parts
+    const { alias } = parts;
+
     // get cache
     const cache = this.#resolveCache.get(id);
     if (!cache) throw new WrapperYAMLException(BUG_MESSAGE);
@@ -513,15 +474,10 @@ export class Interpolation {
     // get needed cache data
     const { localsMap, localsVal } = cache;
 
-    console.debug("LocalMap: ", localsMap, " localVal: ", localsVal);
-
-    // get alias and node path from expr path
-    const alias = exprPath[0];
-
     // check if alias is defined in directives using localsMap
     if (!localsMap.has(alias))
       throw new WrapperYAMLException(
-        `Alias used in local interpolation: '${exprPath}' is not defined in directives.`
+        `Alias used in local expression: '${alias}' is not defined in directives.`
       );
     const defLocal = localsMap.get(alias);
 
@@ -554,7 +510,7 @@ export class Interpolation {
       // if node is not record throw
       if (!this.#isRecord(node) || node instanceof BlueprintItem)
         throw new WrapperYAMLException(
-          `Invalid path in interpolation: ${path.join(".")}`
+          `Invalid path in expression: ${path.join(".")}`
         );
 
       // if item is present in node update it and continue
@@ -579,7 +535,7 @@ export class Interpolation {
 
       // throw error if no resolving happened until now
       throw new WrapperYAMLException(
-        `Invalid path in interpolation: ${path.join(".")}`
+        `Invalid path in expression: ${path.join(".")}`
       );
     }
 
@@ -607,7 +563,7 @@ export class Interpolation {
       // if node is not record throw
       if (!this.#isRecord(node) || node instanceof BlueprintItem)
         throw new WrapperYAMLException(
-          `Invalid path in interpolation: ${path.join(".")}`
+          `Invalid path in expression: ${path.join(".")}.`
         );
 
       // if item is present in node update it and continue
@@ -632,7 +588,7 @@ export class Interpolation {
 
       // throw error if no resolving happened until now
       throw new WrapperYAMLException(
-        `Invalid path in interpolation: ${path.join(".")}`
+        `Invalid path in expression: ${path.join(".")}.`
       );
     }
 
@@ -641,9 +597,9 @@ export class Interpolation {
   }
 
   /**
-   * Method to check if value is interpolation node.
+   * Method to check if value is expression node.
    * @param val - Value that will be checked.
-   * @returns Boolean that indicates if value is interpolation node or not.
+   * @returns Boolean that indicates if value is expression node or not.
    */
   #isIntNode(val: unknown): boolean {
     if (val instanceof BlueprintItem) val = val.rawValue;
@@ -659,24 +615,5 @@ export class Interpolation {
    */
   #isRecord(val: unknown): val is Record<string, unknown> {
     return typeof val === "object" && val !== null;
-  }
-
-  /**
-   * Method to convert key=value payload array into object.
-   * @param payload - Payload that will be converted.
-   * @returns Object that holds key-value pairs of the payload.
-   */
-  #handleKeyValue(payload: string[]) {
-    return Object.fromEntries(
-      payload.map((v) => {
-        const keyVal = v.split("=");
-        if (keyVal.length > 2)
-          throw new WrapperYAMLException(
-            `Payload after interpolation should have this structure: ( key=value ... )`
-          );
-        console.debug(keyVal[1]);
-        return [keyVal[0], keyVal[1]];
-      })
-    );
   }
 }

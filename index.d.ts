@@ -169,7 +169,7 @@ export class LiveLoader {
    * @param paramsVal - Object of module params aliases and there values to be used in this load. so it's almost always better to use addModuleAsync instead.
    * @returns Value of loaded YAML file.
    */
-  addModule(path: string, paramsVal?: Record<string, unknown>): unknown;
+  addModule(path: string, paramsVal?: Record<string, string>): unknown;
 
   /**
    * Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported
@@ -178,7 +178,7 @@ export class LiveLoader {
    * @param paramsVal - Object of module params aliases and there values to be used in this load.
    * @returns Value of loaded YAML file.
    */
-  addModuleAsync(path: string, paramsVal?: Record<string, unknown>): unknown;
+  addModuleAsync(path: string, paramsVal?: Record<string, string>): unknown;
 
   /**
    * Method to get cached value of loaded module or file. note that value retuned is module's resolve when paramsVal is undefined (default params value are used).
@@ -227,7 +227,7 @@ export class YAMLException extends Error {
    */
   toString(compact?: boolean): string;
 
-  /** Name of the error. */
+  /** Logical name of the YAML string where error is thrown. */
   name: string;
 
   /** Reason of the error. */
@@ -245,12 +245,30 @@ export class YAMLException extends Error {
  */
 export class WrapperYAMLException extends Error {
   /**
-   * @param err - Thrown error.
+   * @param reason - Reason of the error.
+   * @param filepath - Filesystem path of the YAML file where error is thrown.
+   * @param name - Logical name of the YAML string where error is thrown.
    */
-  constructor(err: string);
+  constructor(reason?: string, filepath?: string, name?: string);
+
+  /**
+   * Method to convert Error object into string.
+   * @param compact - Boolean to indicated if output error string should be compacted.
+   * @returns Stringified error.
+   */
+  toString(compact?: boolean): string;
+
+  /** Logical name of the YAML string where error is thrown. */
+  name: string;
+
+  /** Reason of the error. */
+  reason: string;
 
   /** Message of the error. */
   message: string;
+
+  /** Filesystem path of the YAML file where error is thrown. */
+  filepath: string;
 }
 
 /** Options object passed to control load behavior. */
@@ -267,7 +285,7 @@ export interface LoadOptions {
    */
   filepath?: string | undefined;
 
-  /** String to be used as a file path in error/warning messages. */
+  /** String to be used as a file path in error/warning messages. It will be overwritten by YAML text `FILENAME` directive if used. */
   filename?: string | undefined;
 
   /** Function to call on warning messages. */
@@ -283,7 +301,7 @@ export interface LoadOptions {
   listener?(this: State, eventType: ParseEventType, state: State): void;
 
   /** Mapping of module param aliases to string values that will be used to resolve %PARAM declarations in the module. Loader-supplied paramsVal should override any defaults declared with %PARAM. */
-  paramsVal?: Record<string, unknown> | undefined;
+  paramsVal?: Record<string, string> | undefined;
 }
 
 /** Options object passed to control dump behavior. */

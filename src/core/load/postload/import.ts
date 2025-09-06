@@ -39,7 +39,7 @@ export class ImportHandler {
   import(
     modulePath: string,
     targetPath: string,
-    targetParams: Record<string, unknown>,
+    targetParams: Record<string, string>,
     loadOpts: HandledLoadOpts,
     loadId: string
   ) {
@@ -84,7 +84,7 @@ export class ImportHandler {
   async importAsync(
     modulePath: string,
     targetPath: string,
-    targetParams: Record<string, unknown>,
+    targetParams: Record<string, string>,
     loadOpts: HandledLoadOpts,
     loadId: string
   ) {

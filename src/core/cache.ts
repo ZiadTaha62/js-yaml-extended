@@ -90,7 +90,7 @@ export function addModuleCache(
 
 export function addLoadCache(
   filepath: string,
-  paramsVal: Record<string, unknown> | undefined,
+  paramsVal: Record<string, string> | undefined,
   load: unknown
 ) {
   // resolve filepath
@@ -142,7 +142,7 @@ export function getModuleCache(
  */
 export function getLoadCache(
   modulePath: string | undefined,
-  paramsVal: Record<string, unknown> | undefined
+  paramsVal: Record<string, string> | undefined
 ): ParamsCache | undefined {
   // if no path supplied return
   if (!modulePath) return;

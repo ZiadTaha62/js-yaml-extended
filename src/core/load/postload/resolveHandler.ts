@@ -1,5 +1,5 @@
 import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
-import { Interpolation } from "./interpolationHandler.js";
+import { Expression } from "./expressionsHandler.js";
 import { TagResolveItem } from "../lazyLoadClasses/tagResolveItem.js";
 import type {
   DirectivesObj,
@@ -10,6 +10,7 @@ import type {
 } from "../../../types.js";
 import { BlueprintItem } from "../lazyLoadClasses/blueprintItem.js";
 import { generateId, getClosingChar } from "../../helpers.js";
+import { tokenizer } from "../tokenizer.js";
 
 /**
  * Class that handles resolving raw load, so signle raw load can be resolved to multiple final loads based on module params value.
@@ -22,7 +23,7 @@ export class ResolveHandler {
   #resolveCache: ResolveCache = new Map();
 
   /** Class to handle interpolations resolving. */
-  #intHandler: Interpolation;
+  #exprHandler: Expression;
 
   /**
    * @param load - Reference to internalLoad function, so it can be used in $import interpolation. passed like this to avoid circular dependency.
@@ -30,7 +31,7 @@ export class ResolveHandler {
    */
   constructor(load: InternalLoad, loadAsync: InternalLoadAsync) {
     // create interpolation class to handle interpolations while resolving.
-    this.#intHandler = new Interpolation(
+    this.#exprHandler = new Expression(
       this.#resolveCache,
       this.#resolveUnknown.bind(this),
       this.#resolveUnknownAsync.bind(this),
@@ -51,7 +52,7 @@ export class ResolveHandler {
     // if array generate similar array and all values go through emptyCopy method as well
     if (Array.isArray(rawLoad)) {
       // check if it's syntaxt [$val]
-      if (this.#intHandler.isIntSequence(rawLoad))
+      if (this.#exprHandler.isExprSequence(rawLoad))
         return new BlueprintItem(rawLoad);
 
       // otherwise handle as normal array
@@ -66,7 +67,7 @@ export class ResolveHandler {
       const enteries = Object.entries(rawLoad);
 
       // check if it's syntaxt {$val}
-      if (this.#intHandler.isIntMapping(enteries))
+      if (this.#exprHandler.isExprMapping(enteries))
         return new BlueprintItem(rawLoad);
 
       // otherwise handle as normal object
@@ -95,7 +96,7 @@ export class ResolveHandler {
     path: string | undefined,
     blueprint: unknown,
     directivesObj: DirectivesObj,
-    paramsVal: Record<string, unknown>,
+    paramsVal: Record<string, string>,
     loadId: string,
     opts: HandledLoadOpts
   ): unknown {
@@ -137,7 +138,7 @@ export class ResolveHandler {
     path: string | undefined,
     blueprint: unknown,
     directivesObj: DirectivesObj,
-    paramsVal: Record<string, unknown>,
+    paramsVal: Record<string, string>,
     loadId: string,
     opts: HandledLoadOpts
   ): Promise<unknown> {
@@ -245,7 +246,7 @@ export class ResolveHandler {
     if (enteries.length === 0) return {};
 
     // check if it's syntaxt {$val}
-    const intMapping = this.#intHandler.handleIntMapping(enteries, id);
+    const intMapping = this.#exprHandler.handleExprMapping(enteries, id);
     if (intMapping) {
       if (
         typeof intMapping !== "object" ||
@@ -286,21 +287,21 @@ export class ResolveHandler {
     if (enteries.length === 0) return {};
 
     // check if it's syntaxt {$val}
-    const intMapping = await this.#intHandler.handleIntMappingAsync(
+    const exprMapping = await this.#exprHandler.handleExprMappingAsync(
       enteries,
       id
     );
-    console.debug(intMapping, typeof intMapping);
-    if (intMapping) {
+
+    if (exprMapping) {
       if (
-        typeof intMapping !== "object" ||
-        intMapping == null ||
-        Array.isArray(intMapping)
+        typeof exprMapping !== "object" ||
+        exprMapping == null ||
+        Array.isArray(exprMapping)
       )
         throw new WrapperYAMLException(
-          `Interpolation: ${enteries[0][0]} is wrapped inside {} but it's value is not a mapping.`
+          `Expression: ${enteries[0][0]} is wrapped inside {} but it's value is not a mapping.`
         );
-      return intMapping;
+      return exprMapping;
     }
 
     // loop enteries
@@ -311,6 +312,7 @@ export class ResolveHandler {
         anchored,
         path
       );
+
     return newObj;
   }
 
@@ -332,7 +334,7 @@ export class ResolveHandler {
     const newArr = [...arr];
 
     // check if it's syntaxt [$val]
-    const intSequence = this.#intHandler.handleIntSequence(newArr, id);
+    const intSequence = this.#exprHandler.handleExprSequence(newArr, id);
     if (intSequence)
       return Array.isArray(intSequence) ? intSequence : [intSequence];
 
@@ -362,12 +364,12 @@ export class ResolveHandler {
     const newArr = [...arr];
 
     // check if it's syntaxt [$val]
-    const intSequence = await this.#intHandler.handleIntSequenceAsync(
+    const exprSequence = await this.#exprHandler.handleExprSequenceAsync(
       newArr,
       id
     );
-    if (intSequence)
-      return Array.isArray(intSequence) ? intSequence : [intSequence];
+    if (exprSequence)
+      return Array.isArray(exprSequence) ? exprSequence : [exprSequence];
 
     // handle all the values in the array
     for (let i = 0; i < newArr.length; i++)
@@ -390,7 +392,7 @@ export class ResolveHandler {
    */
   #resolveString(str: string, id: string): string {
     // check if it's syntaxt $val
-    const intScaler = this.#intHandler.handleIntScalar(str, id);
+    const intScaler = this.#exprHandler.handleExprScalar(str, id);
     if (intScaler) return intScaler;
 
     /** Var to hold out string. */
@@ -419,7 +421,7 @@ export class ResolveHandler {
             throw new WrapperYAMLException(
               `String interpolation used without closing '}' in: ${str}`
             );
-          const val = this.#intHandler.resolve(str.slice(i, end + 1), id);
+          const val = this.#exprHandler.resolve(str.slice(i, end + 1), id);
           const stringifiedVal =
             typeof val === "string" ? val : JSON.stringify(val);
           out += stringifiedVal;
@@ -445,8 +447,8 @@ export class ResolveHandler {
    */
   async #resolveStringAsync(str: string, id: string): Promise<string> {
     // check if it's syntaxt $val
-    const intScaler = await this.#intHandler.handleIntScalarAsync(str, id);
-    if (intScaler) return intScaler;
+    const exprScaler = await this.#exprHandler.handleExprScalarAsync(str, id);
+    if (exprScaler) return exprScaler;
 
     /** Var to hold out string. */
     let out: string = "";
@@ -474,7 +476,7 @@ export class ResolveHandler {
             throw new WrapperYAMLException(
               `String interpolation used without closing '}' in: ${str}`
             );
-          const val = await this.#intHandler.resolveAsync(
+          const val = await this.#exprHandler.resolveAsync(
             str.slice(i, end + 1),
             id
           );
@@ -578,7 +580,7 @@ export class ResolveHandler {
     // loop through private array to handle each path
     for (const priv of privateArr) {
       // get parts of the path
-      const path = priv.split(".");
+      const path = tokenizer.divideNodepath(priv);
 
       // var that holds the resolve to transverse through it
       let node = resolve;

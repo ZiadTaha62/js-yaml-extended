@@ -1,6 +1,14 @@
 import { WrapperYAMLException } from "../../../wrapperClasses/error.js";
 import { dirEndRegex, pathRegex } from "../regex.js";
-import type { DirectivesObj } from "../../../types.js";
+import type {
+  DirectivesObj,
+  ParamDirParts,
+  LocalDirParts,
+  PrivateDirParts,
+  FilenameDirParts,
+  ImportDirParts,
+} from "../../../types.js";
+import { tokenizer } from "../tokenizer.js";
 
 /**
  * Class to handle reading directives at the top of YAML string. it also strip them from the string and convert it back to normal YAML so it can be passed to js-yaml loader function.
@@ -16,19 +24,20 @@ export class DirectivesHandler {
     /** Holds list of private node's definition. */
     const privateArr: string[] = [];
     /** Holds list of param's aliases and default values used in the module. */
-    const paramsMap: Map<string, unknown> = new Map();
+    const paramsMap: Map<string, string> = new Map();
     /** Holds list of local's aliases and default values used in the module. */
-    const localsMap: Map<string, unknown> = new Map();
+    const localsMap: Map<string, string> = new Map();
     /** Map of aliases for imports and import data as path and modules params. */
     const importsMap: Map<
       string,
-      { path: string; paramsVal: Record<string, unknown> }
+      { path: string; paramsVal: Record<string, string> }
     > = new Map();
+    let filename: string = "";
 
     // split using regex to get directives if present
     const parts = str.split(dirEndRegex);
 
-    // handle length verification of parts
+    // If no directive part return with empty data
     if (parts.length === 1)
       return {
         filteredStr: str,
@@ -36,11 +45,8 @@ export class DirectivesHandler {
         privateArr,
         localsMap,
         importsMap,
-      }; // no directives
-    if (parts.length > 2)
-      throw new WrapperYAMLException(
-        "Directives splitting can only be done once."
-      ); // more than one dir end mark in the file
+        filename,
+      };
 
     // split directive part into lines
     const lines = parts[0]
@@ -48,7 +54,7 @@ export class DirectivesHandler {
       .filter((l) => !this.#isEmptyLine(l))
       .map((l) => l.trim());
 
-    // array to hold directive lines that are related to my wrapper to delete them before passing to the parser
+    // array to hold directive lines that are related to wrapper to delete them before passing to the parser
     let filterIdx: number[] = [];
 
     // loop through lines to handle wrapper lines
@@ -56,30 +62,31 @@ export class DirectivesHandler {
       // get line
       const line = lines[i];
 
-      // split line into parts by deviding using white space
-      const partsArr = line.split(" ").filter((v) => v);
+      // get directive type and devide it into parts, if not wrapper related continue
+      const dirData = tokenizer.handleDirective(line);
+      if (!dirData) continue;
 
-      console.debug("Parts arr: ", partsArr);
+      // mark this line as filtered
+      filterIdx.push(i);
 
-      // according to first part (directive decleration) pass remaining parts to specific function
-      const dec = partsArr.shift();
-      console.debug("Dec: ", dec);
-      switch (dec) {
-        case "%PARAM":
-          this.#handleParams(paramsMap, partsArr);
-          filterIdx.push(i);
+      // destructure directive data
+      const { type, parts: directiveParts } = dirData;
+
+      switch (type) {
+        case "PARAM":
+          this.#handleParams(paramsMap, directiveParts as ParamDirParts);
           break;
-        case "%PRIVATE":
-          this.#handlePrivate(privateArr, partsArr);
-          filterIdx.push(i);
+        case "PRIVATE":
+          this.#handlePrivate(privateArr, directiveParts as PrivateDirParts);
           break;
-        case "%IMPORT":
-          this.#handleImports(importsMap, partsArr);
-          filterIdx.push(i);
+        case "IMPORT":
+          this.#handleImports(importsMap, directiveParts as ImportDirParts);
           break;
-        case "%LOCAL":
-          this.#handleLocals(localsMap, partsArr);
-          filterIdx.push(i);
+        case "LOCAL":
+          this.#handleLocals(localsMap, directiveParts as LocalDirParts);
+          break;
+        case "FILENAME":
+          filename = this.#handleFilename(directiveParts as FilenameDirParts);
           break;
       }
     }
@@ -97,16 +104,28 @@ export class DirectivesHandler {
       paramsMap,
       localsMap,
       importsMap,
+      filename,
     };
+  }
+
+  /**
+   * Method to return filename. Only method here that returns value as filename is a string and can't be referenced.
+   * @param parts - Directive parts object with metadata filename.
+   * @returns filename.
+   */
+  #handleFilename(parts: FilenameDirParts): string {
+    return parts.metadata;
   }
 
   /**
    * Method to push private nodes to the private array of directives object.
    * @param privateArr - Reference to the array that holds private nodes and will be passed to directives object.
-   * @param parts - Parts of the line.
+   * @param parts - Directive parts object with metadata being private nodes.
    */
-  #handlePrivate(privateArr: string[], parts: string[]): void {
-    for (const p of parts) privateArr.push(p);
+  #handlePrivate(privateArr: string[], parts: PrivateDirParts): void {
+    const privateNodes = parts.arrMetadata;
+    if (Array.isArray(privateNodes))
+      for (const p of privateNodes) privateArr.push(p);
   }
 
   /**
@@ -114,20 +133,9 @@ export class DirectivesHandler {
    * @param localsMap - Reference to the map that holds local's aliases and default values and will be passed to directives object.
    * @param parts - Parts of the line.
    */
-  #handleLocals(localsMap: Map<string, unknown>, parts: string[]): void {
-    console.debug("Local is being handled");
-    // make sure that alias is present
-    if (parts.length < 1)
-      throw new WrapperYAMLException(
-        `Local directive should include at least alias.`
-      );
-
-    // get alias and default value
-    const alias = parts[0];
-    const defValue = parts[1];
-
-    console.log("Alias: ", alias, " defValue: ", defValue);
-
+  #handleLocals(localsMap: Map<string, string>, parts: LocalDirParts): void {
+    // get alias and defValue from parts
+    const { alias, defValue } = parts;
     // add the alias with default value to the paramsMap
     localsMap.set(alias, defValue);
   }
@@ -137,16 +145,9 @@ export class DirectivesHandler {
    * @param paramsMap - Reference to the map that holds params's aliases and default values and will be passed to directives object.
    * @param parts - Parts of the line.
    */
-  #handleParams(paramsMap: Map<string, unknown>, parts: string[]) {
-    // make sure that alias is present
-    if (parts.length < 1)
-      throw new WrapperYAMLException(
-        `Param directive should include at least alias.`
-      );
-    // get alias and default value
-    const alias = parts[0];
-    const defValue = parts[1];
-
+  #handleParams(paramsMap: Map<string, string>, parts: ParamDirParts) {
+    // get alias and defValue from parts
+    const { alias, defValue } = parts;
     // add the alias with default value to the paramsMap
     paramsMap.set(alias, defValue);
   }
@@ -160,41 +161,19 @@ export class DirectivesHandler {
   #handleImports(
     importsMap: Map<
       string,
-      { path: string; paramsVal: Record<string, unknown> }
+      { path: string; paramsVal: Record<string, string> }
     >,
-    parts: string[]
+    parts: ImportDirParts
   ): void {
-    if (parts.length < 2)
-      throw new WrapperYAMLException(
-        `Import directive should have at least 2 parts with the following structure: <alias> <path> <params>?`
-      );
-
-    // define alias and path, also remove "" from path if present
-    const alias = parts[0];
-    const path = parts[1].replaceAll('"', "");
-    const paramsKeyVal = parts.slice(2) ?? [];
-
+    // get alias and path and params key value from parts
+    const { alias, metadata: path, keyValue: paramsVal } = parts;
     // verify path
     const isYamlPath = pathRegex.test(path);
     if (!isYamlPath)
       throw new WrapperYAMLException(
-        `This is not a valid YAML file path: ${path}`
+        `This is not a valid YAML file path: ${path}.`
       );
-
-    // create params value object
-    const paramsVal: Record<string, unknown> = {};
-    for (const param of paramsKeyVal) {
-      const split = param.split("=");
-
-      if (split.length !== 2)
-        throw new WrapperYAMLException(
-          `Params in Import directive should have the following structure: key=value`
-        );
-
-      paramsVal[split[0]] = split[1];
-    }
-
-    // add them to the map
+    // add parts to the map
     importsMap.set(alias, { path, paramsVal });
   }
 

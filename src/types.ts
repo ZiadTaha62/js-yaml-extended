@@ -11,6 +11,39 @@ import type {
 import type { Resolve, ResolveAsync } from "./core/resolve/resolve.js";
 import { LiveLoader } from "./core/liveLoader/liveLoader.js";
 
+export type DirectiveTypes =
+  | "FILENAME"
+  | "PARAM"
+  | "LOCAL"
+  | "IMPORT"
+  | "PRIVATE";
+export type DirectivePartsObj = {
+  alias: string;
+  defValue: string;
+  metadata: string;
+  arrMetadata: string[];
+  keyValue: Record<string, string>;
+};
+export type ImportDirParts = Pick<
+  DirectivePartsObj,
+  "alias" | "metadata" | "keyValue"
+>;
+export type FilenameDirParts = Pick<DirectivePartsObj, "metadata">;
+export type LocalDirParts = Pick<DirectivePartsObj, "alias" | "defValue">;
+export type ParamDirParts = Pick<DirectivePartsObj, "alias" | "defValue">;
+export type PrivateDirParts = Pick<DirectivePartsObj, "arrMetadata">;
+
+export type ExpressionTypes = "this" | "import" | "param" | "local";
+export type ExpressionPartsObj = {
+  nodepath: string[];
+  keyValue: Record<string, string>;
+  alias: string;
+};
+export type ThisExprParts = Pick<ExpressionPartsObj, "nodepath" | "keyValue">;
+export type ImportExprParts = Pick<ExpressionPartsObj, "nodepath" | "keyValue">;
+export type ParamExprParts = Pick<ExpressionPartsObj, "alias">;
+export type LocalExprParts = Pick<ExpressionPartsObj, "alias">;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Classes types
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +122,7 @@ export interface LoadOptions {
   /** listener for parse events */
   listener?(this: State, eventType: EventType, state: State): void;
   /** Params value to be used in module (str). */
-  paramsVal?: Record<string, unknown> | undefined;
+  paramsVal?: Record<string, string> | undefined;
 }
 /** Options passed to load function after being handled (basePath and paramsVal default values are added). */
 export type HandledLoadOpts = {
@@ -100,7 +133,7 @@ export type HandledLoadOpts = {
   json?: boolean | undefined;
   listener?(this: State, eventType: EventType, state: State): void;
   basePath: string;
-  paramsVal: Record<string, unknown>;
+  paramsVal: Record<string, string>;
 };
 
 export type LiveLoaderOptions = Omit<
@@ -147,7 +180,7 @@ export interface State {
 ////////// WRAPPER RELATED
 export type ParamsCache = {
   /** Params used to load module. */
-  paramsVal: Record<string, unknown> | undefined;
+  paramsVal: Record<string, string> | undefined;
   /** Final load after parsing YAML text. */
   load: unknown;
 };
@@ -177,11 +210,13 @@ export type DirectivesObj = {
   /** Array of node paths that are defined to be private in YAML directive. */
   privateArr: string[];
   /** Map of <alias> <defualt value> for the params that are defined to be private in YAML directive. */
-  paramsMap: Map<string, unknown>;
+  paramsMap: Map<string, string>;
   /** Map of <alias> <defualt value> for the locals that are defined to be private in YAML directive. */
-  localsMap: Map<string, unknown>;
+  localsMap: Map<string, string>;
   /** Map of <alias> <path> <params value> for the module imports that are defined to be private in YAML directive. */
-  importsMap: Map<string, { path: string; paramsVal: Record<string, unknown> }>;
+  importsMap: Map<string, { path: string; paramsVal: Record<string, string> }>;
+  /** Logical filename if supplied in the directives. */
+  filename: string | undefined;
 };
 export type ModuleResolveCache = DirectivesObj & {
   /** Options passed to load(). used in interpolations. */
@@ -194,13 +229,13 @@ export type ModuleResolveCache = DirectivesObj & {
   blueprint: unknown;
 
   /** Params value passed along with load(). along with paramsMap's defualt values they are used to resolve params defined in module. */
-  paramsVal: Record<string, unknown>;
+  paramsVal: Record<string, string>;
 
   /**
    * Locals value defined after $this interpolation. along with localsMap's defualt values they are used to resolve locals defined in module.
    * array as each $this read will add it's defined locals value and delete it after being handled
    */
-  localsVal: Record<string, unknown>[];
+  localsVal: Record<string, string>[];
 };
 export type ResolveCache = Map<string, ModuleResolveCache>;
 

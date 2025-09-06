@@ -436,17 +436,18 @@ function handleNewModule(
   const val = executeStr(str, opts, loadId);
   const blueprint = val.blueprint;
   const dirObj = val.dirObj;
-  // resolve with undefined params
-  const load = resolveHandler.resolve(
-    opts.filepath,
-    blueprint,
-    dirObj,
-    {},
-    loadId,
-    opts
-  );
-  // add load to the cache if filepath is supplied
-  if (opts.filepath) addLoadCache(opts.filepath, opts.paramsVal, load);
+  // resolve with undefined params and add load to the cache if filepath is supplied
+  if (opts.filepath) {
+    const load = resolveHandler.resolve(
+      opts.filepath,
+      blueprint,
+      dirObj,
+      {},
+      loadId,
+      opts
+    );
+    addLoadCache(opts.filepath, opts.paramsVal, load);
+  }
   // return blueprint and directives object
   return { blueprint, dirObj };
 }
@@ -499,6 +500,9 @@ function executeStr(
   // read directives
   const { filteredStr, ...dirObj } = directivesHandler.handle(str);
 
+  // overwrite filename if defined in directives
+  if (dirObj.filename) opts.filename = dirObj.filename;
+
   // handle tags by fetching them then converting them to wrapper types
   const tags = tagsHandler.captureTags(filteredStr);
   const types = tagsHandler.convertTagsToTypes(tags, opts.schema);
@@ -538,6 +542,9 @@ async function executeStrAsync(
 ): Promise<{ blueprint: unknown; dirObj: DirectivesObj }> {
   // read directives
   const { filteredStr, ...dirObj } = directivesHandler.handle(str);
+
+  // overwrite filename if defined in directives
+  if (dirObj.filename) opts.filename = dirObj.filename;
 
   // handle tags by fetching them then converting them to wrapper types
   const tags = tagsHandler.captureTags(filteredStr);

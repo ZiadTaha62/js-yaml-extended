@@ -243,13 +243,13 @@ Class that handles loading multiple YAML files at the same time while watching l
   Method to set options of the class.
   `opts`: Options object passed to control live loader behavior.
 
-- `addModule(path: string, paramsVal?: Record<string, unknown>) => unknown`
+- `addModule(path: string, paramsVal?: Record<string, string>) => unknown`
   Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works sync so all file watch, reads are sync and tags executions are handled as sync functions and will not be awaited.
   `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
   `paramsVal`: Object of module params aliases and there values to be used in this load. so it's almost always better to use addModuleAsync instead.
   `returns`: Value of loaded YAML file.
 
-- `addModuleAsync(path: string, paramsVal?: Record<string, unknown>) => unknown`
+- `addModuleAsync(path: string, paramsVal?: Record<string, string>) => unknown`
   Method to add new module to the live loader. added modules will be watched using fs.watch() and updated as the watched file changes. note that imported YAML files in the read YAML string are watched as well. works async so all file watch, reads are async and tags executions will be awaited.
   `path`: Filesystem path of YAML file. it will be resolved using `LiveLoaderOptions.basePath`.
   `paramsVal`: Object of module params aliases and there values to be used in this load.
@@ -289,7 +289,7 @@ Error object when js-yaml parse error it thrown.
   `returns`: Stringified error.
 
 - `name: string`
-  Name of the error.
+  Logical name of the YAML string where error is thrown.
 
 - `reason: string`
   Reason of the error.
@@ -302,14 +302,28 @@ Error object when js-yaml parse error it thrown.
 
 #### WrapperYAMLException
 
-Error object when yaml-extend resolve error is thrown. One of the down sides of being a wrapper is inability to gether error details (exact line, positions... of the error). but error messages contains the file path along with incorrent interpolation.
+Error object when yaml-extend resolve error is thrown. One of the down sides of being a wrapper is inability to gether error details (exact line, positions... of the error), so mark is replaced by filepath.
 
-- `constructor(err: string)`
+- `constructor(reason?: string, filepath?: string, name?: string)`
   WrapperYAMLException class constructor
-  `err`: Thrown error.
+  `reason`: Reason of the error.
+
+- `toString(compact?: boolean) => string`
+  Method to convert Error object into string.
+  `compact`: Boolean to indicated if output error string should be compacted.
+  `returns`: Stringified error.
+
+- `name: string`
+  Logical name of the YAML string where error is thrown.
+
+- `reason: string`
+  Reason of the error.
 
 - `message: string`
   Message of the error.
+
+- `filepath: string`
+  Filesystem path of the YAML file where error is thrown.
 
 ### Interfaces
 
@@ -324,7 +338,7 @@ Options object passed to control load behavior. basePath, filpath and paramsVal 
   The resolved path of the YAML source. Useful for error messages, caching, and resolving relative imports. If you call `load("./file.yaml")` the loader should set this to the resolved absolute path automatically. `Note that imports and caching will not work if filepath is not supplied here or in function's str field`.
 
 - `filename?: string | undefined` — Default: `undefined`
-  String to be used as a file path in error/warning messages.
+  String to be used as a file path in error/warning messages. It will be overwritten by YAML text `FILENAME` directive if used.
 
 - `onWarning?: ((this: null, err: YAMLException | WrapperYAMLException) => void) | undefined` — Default: `undefined` — see [`YAMLException`](#yamlexception) / [`WrapperYAMLException`](#wrapperyamlexception)
   Function to call on warning messages.
@@ -341,7 +355,7 @@ Options object passed to control load behavior. basePath, filpath and paramsVal 
   `eventType`: Type of the parse event. either close or open.
   `state`: State of the current parse.
 
-- `paramsVal?: Record<string, unknown> | undefined` — Default: `undefined`
+- `paramsVal?: Record<string, string> | undefined` — Default: `undefined`
   Mapping of module param aliases to string values that will be used to resolve %PARAM declarations in the module. Loader-supplied paramsVal should override any defaults declared with %PARAM.
 
 #### DumpOptions

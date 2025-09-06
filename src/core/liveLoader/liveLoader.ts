@@ -61,7 +61,7 @@ export class LiveLoader {
    * @param paramsVal - Optional params value to be passed to this loaded module.
    * @returns Resolved value of YAML file load.
    */
-  addModule(path: string, paramsVal?: Record<string, unknown>): unknown {
+  addModule(path: string, paramsVal?: Record<string, string>): unknown {
     // get resolved path
     const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
     // read str
@@ -103,7 +103,7 @@ export class LiveLoader {
    */
   async addModuleAsync(
     path: string,
-    paramsVal?: Record<string, unknown>
+    paramsVal?: Record<string, string>
   ): Promise<unknown> {
     // get resolved path
     const resPath = resolvePath(path, this.#liveLoaderOpts.basePath!);
