@@ -164,7 +164,7 @@ export class Tokenizer {
         // add to keyValue object
         keyValue[handledKey] = handledValue;
       }
-    console.debug(handledAlias, handledPath, keyValue);
+
     // return parts
     return { alias: handledAlias, metadata: handledPath, keyValue };
   }

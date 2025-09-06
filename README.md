@@ -972,7 +972,7 @@ createUser:
 
 #### Structure
 
-Geneal structure is: `%PRIVE [node ...]`
+Geneal structure is: `%PRIVATE [node ...]`
 
 - `node` — A node name in the current YAML document that should be treated as internal.
 

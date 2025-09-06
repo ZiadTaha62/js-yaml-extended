@@ -49,6 +49,9 @@ export class ResolveHandler {
    * @returns Blueprint that can be resolved to final loads.
    */
   createBlueprint(rawLoad: unknown): unknown {
+    // if tag resolve item return it directly
+    if (rawLoad instanceof TagResolveItem) return rawLoad;
+
     // if array generate similar array and all values go through emptyCopy method as well
     if (Array.isArray(rawLoad)) {
       // check if it's syntaxt [$val]
@@ -189,11 +192,15 @@ export class ResolveHandler {
 
     // handle value according to its type
     if (typeof val === "string") return this.#resolveString(val, id);
-    if (typeof val !== "object" || val === null) return val;
+    if (typeof val !== "object" || val == null) return val;
     if (val instanceof TagResolveItem)
       return this.#resolveTag(val, id, anchored, path);
     if (Array.isArray(val)) return this.#resolveArray(val, id, anchored, path);
     return this.#resolveObject(val, id, anchored, path);
+  }
+
+  #isTagResolveItem(obj: Record<string, unknown>) {
+    return;
   }
 
   /**
@@ -544,25 +551,23 @@ export class ResolveHandler {
     anchored: boolean,
     path?: string[]
   ): Promise<unknown> {
-    // get data, params and resolve function
-    const { data, params, resolveAsync } = resolveItem;
-
     // handle data and params (data's type is unkown but params type is string)
     const resolvedData = await this.#resolveUnknownAsync(
-      data,
+      resolveItem.data,
       id,
       anchored,
       path
     );
     const resolvedParams =
-      params && (await this.#resolveStringAsync(params, id));
+      resolveItem.params &&
+      (await this.#resolveStringAsync(resolveItem.params, id));
 
     // save resolved values in the tag resolve instance
     resolveItem.data = resolvedData;
     resolveItem.params = resolvedParams;
 
     // execute the constructor function
-    const value = await resolveAsync();
+    const value = await resolveItem.resolveAsync();
     return value;
   }
 
